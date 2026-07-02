@@ -8,8 +8,8 @@ import { createBrowserSupabase } from "@/lib/supabase";
 
 export default function RestaurantLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("restaurant@demo.com");
-  const [password, setPassword] = useState("restaurant123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -44,7 +44,7 @@ export default function RestaurantLoginPage() {
         router.push("/admin");
         return;
       }
-      setError("Use restaurant@demo.com / restaurant123 or admin@famfood.local / admin123 for local demo.");
+      setError("Invalid email or password.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to login.");
     } finally {
