@@ -3,7 +3,8 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, MessageCircle, ShoppingCart, X } from "lucide-react";
+import { MessageCircle, ShoppingCart } from "lucide-react";
+import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { businessSettings } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
@@ -31,11 +32,12 @@ export function SiteHeader() {
   }, [pathname]);
 
   const dark = !solid && !open;
+  const mobileItemStyle = (index: number) => ({ "--mobile-menu-delay": `${index * 65}ms` } as CSSProperties);
 
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-all duration-300 ${
-        solid ? "border-b border-black/10 bg-white/95 shadow-sm backdrop-blur-xl" : "bg-transparent text-white"
+        solid || open ? "border-b border-black/10 bg-white/95 shadow-sm backdrop-blur-xl" : "bg-transparent text-white"
       }`}
     >
       <div className="section-shell flex h-[78px] items-center justify-between gap-5">
@@ -94,34 +96,53 @@ export function SiteHeader() {
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
-          className={`inline-flex h-11 w-11 items-center justify-center border lg:hidden ${
+          className={`mobile-menu-button inline-flex h-11 w-11 items-center justify-center border lg:hidden ${open ? "is-open" : ""} ${
             dark ? "border-white/40 text-white" : "border-slate-200 text-slate-800"
           }`}
           aria-label={open ? "Close navigation menu" : "Open navigation menu"}
+          aria-expanded={open}
+          aria-controls="mobile-navigation"
         >
-          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          <span />
+          <span />
+          <span />
         </button>
       </div>
-      {open && (
-        <div className="border-t border-slate-100 bg-white text-[#182126] lg:hidden">
-          <div className="section-shell grid gap-2 py-4">
-            <div className="pb-2">
-              <LanguageToggle compact />
-            </div>
-            {navItems.map((item) => (
-              <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="px-3 py-3 text-sm font-bold hover:bg-slate-50">
-                {item.label} / {item.zh}
+      <div id="mobile-navigation" className={`mobile-menu-panel lg:hidden ${open ? "is-open" : ""}`} aria-hidden={!open} inert={!open}>
+        <div className="section-shell mobile-menu-inner">
+          <div className="mobile-menu-kicker" style={mobileItemStyle(0)}>
+            <span>FAMFOOD</span>
+            <LanguageToggle compact />
+          </div>
+          <nav className="mobile-menu-list" aria-label="Mobile navigation">
+            {navItems.map((item, index) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                className={`mobile-menu-link ${pathname === item.href ? "is-active" : ""}`}
+                style={mobileItemStyle(index + 1)}
+              >
+                <span>{item.label}</span>
+                <small>{item.zh}</small>
               </Link>
             ))}
-            <Link href="/cart" onClick={() => setOpen(false)} className="px-3 py-3 text-sm font-bold hover:bg-slate-50">
-              Cart ({count})
+            <Link href="/cart" onClick={() => setOpen(false)} className="mobile-menu-link" style={mobileItemStyle(navItems.length + 1)}>
+              <span>Cart</span>
+              <small>{count} item{count === 1 ? "" : "s"}</small>
             </Link>
-            <Link href="/restaurant/login" onClick={() => setOpen(false)} className="bg-[#07586b] px-3 py-3 text-sm font-bold text-white">
+          </nav>
+          <div className="mobile-menu-actions" style={mobileItemStyle(navItems.length + 2)}>
+            <Link href="/restaurant/login" onClick={() => setOpen(false)} className="mobile-menu-primary">
               Restaurant Login
             </Link>
+            <a href={`https://wa.me/${businessSettings.whatsappInternational}`} target="_blank" rel="noreferrer" className="mobile-menu-secondary">
+              <MessageCircle className="h-4 w-4" />
+              WhatsApp
+            </a>
           </div>
         </div>
-      )}
+      </div>
     </header>
   );
 }
