@@ -204,21 +204,6 @@ export default function AdminPage() {
     }
   }
 
-  async function seedCatalog() {
-    try {
-      const response = await adminFetch("/api/admin/seed", { method: "POST" });
-      const payload = await response.json();
-      if (payload.seeded) {
-        setAdminNotice(`Seeded ${payload.categories} categories and ${payload.products} products.`);
-        await loadAdminData();
-      } else {
-        setAdminNotice(payload.message || "Seed endpoint is ready.");
-      }
-    } catch (caught) {
-      setAdminNotice(caught instanceof Error ? caught.message : "Unable to seed catalog.");
-    }
-  }
-
   useEffect(() => {
     queueMicrotask(() => loadAdminData());
   }, []);
@@ -231,20 +216,17 @@ export default function AdminPage() {
             <p className="ff-eyebrow">Admin system</p>
             <h1 className="display-serif mt-2 break-words text-4xl font-medium text-slate-950 md:text-5xl">FAMFOOD Dashboard</h1>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 md:min-w-[360px]">
+          <div className="portal-page-actions">
             <button
               type="button"
               onClick={() => {
                 window.localStorage.removeItem("famfood-session");
                 router.push("/restaurant/login");
               }}
-              className="ff-button ff-button-outline h-11 bg-white"
+              className="portal-logout-button ff-button ff-button-outline h-11 bg-white"
             >
               <LogOut className="h-4 w-4" />
               Logout
-            </button>
-            <button type="button" onClick={seedCatalog} className="ff-button ff-button-primary h-11 bg-white text-[#07586b]">
-              Seed Catalog
             </button>
           </div>
         </div>

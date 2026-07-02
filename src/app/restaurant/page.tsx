@@ -112,17 +112,19 @@ export default function RestaurantPortalPage() {
             <p className="ff-eyebrow">Restaurant portal</p>
             <h1 className="display-serif mt-2 break-words text-4xl font-medium text-slate-950 md:text-5xl">{customer.restaurantName}</h1>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              window.localStorage.removeItem("famfood-session");
-              router.push("/restaurant/login");
-            }}
-            className="ff-button ff-button-outline h-11 bg-white md:w-auto"
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
-          </button>
+          <div className="portal-page-actions">
+            <button
+              type="button"
+              onClick={() => {
+                window.localStorage.removeItem("famfood-session");
+                router.push("/restaurant/login");
+              }}
+              className="portal-logout-button ff-button ff-button-outline h-11 bg-white"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
+          </div>
         </div>
 
         <div className="portal-layout mt-8 grid gap-6 lg:grid-cols-[250px_1fr] lg:gap-8">

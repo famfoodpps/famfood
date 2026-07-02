@@ -499,6 +499,17 @@ a {
   min-width: 0;
 }
 
+.portal-page-actions {
+  display: flex;
+  justify-content: stretch;
+  width: 100%;
+}
+
+.portal-logout-button {
+  border-color: var(--ff-teal);
+  color: var(--ff-teal);
+}
+
 .portal-tabs {
   display: flex;
   gap: 8px;
@@ -583,6 +594,11 @@ a {
 }
 
 @media (min-width: 1024px) {
+  .portal-page-actions {
+    justify-content: flex-end;
+    width: auto;
+  }
+
   .portal-tabs {
     display: block;
     overflow: visible;
