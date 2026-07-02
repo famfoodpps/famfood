@@ -107,7 +107,7 @@ export default function RestaurantPortalPage() {
   return (
     <div className="min-h-screen bg-[#f7f2e8] pt-[104px]">
       <div className="section-shell py-8">
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
+        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
           <div>
             <p className="ff-eyebrow">Restaurant portal</p>
             <h1 className="display-serif mt-2 break-words text-4xl font-medium text-slate-950 md:text-5xl">{customer.restaurantName}</h1>
@@ -118,43 +118,43 @@ export default function RestaurantPortalPage() {
               window.localStorage.removeItem("famfood-session");
               router.push("/restaurant/login");
             }}
-            className="ff-button ff-button-outline bg-white"
+            className="ff-button ff-button-outline h-11 bg-white md:w-auto"
           >
             <LogOut className="h-4 w-4" />
             Logout
           </button>
         </div>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[250px_1fr]">
-          <nav className="ff-card p-3">
+        <div className="portal-layout mt-8 grid gap-6 lg:grid-cols-[250px_1fr] lg:gap-8">
+          <nav className="portal-tabs ff-card">
             {tabs.map(({ id, icon: Icon, label }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                className={`mb-1 flex w-full items-center px-4 py-3 text-left text-sm font-black ${tab === id ? "bg-[#07586b] text-white" : "text-slate-700 hover:bg-slate-50"}`}
+                className={`portal-tab text-sm font-black ${tab === id ? "bg-[#07586b] text-white" : "text-slate-700 hover:bg-slate-50"}`}
               >
-                <Icon className="mr-3 h-4 w-4" />
+                <Icon className="h-4 w-4 shrink-0" />
                 {id === "cart" ? `${label} (${cart.count})` : label}
               </button>
             ))}
           </nav>
 
-          <section>
+          <section className="min-w-0">
             {tab === "dashboard" && (
-              <div className="grid gap-6 md:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                 <Metric label="Open Orders" value={recentOrders.filter((order) => !["Delivered", "Cancelled"].includes(order.status)).length.toString()} />
                 <Metric label="Cart Items" value={cart.count.toString()} />
                 <Metric label="Price Tier" value={customer.priceTier} />
-                <div className="ff-card p-6 md:col-span-3">
-                  <h2 className="display-serif text-3xl font-medium">Recent orders</h2>
+                <div className="portal-panel ff-card md:col-span-3">
+                  <h2 className="display-serif text-2xl font-medium sm:text-3xl">Recent orders</h2>
                   <OrderTable orders={recentOrders} />
                 </div>
               </div>
             )}
 
             {tab === "products" && (
-              <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {productList.filter((product) => product.active).map((product) => (
                   <ProductCard key={product.id} product={product} mode="restaurant" />
                 ))}
@@ -162,22 +162,28 @@ export default function RestaurantPortalPage() {
             )}
 
             {tab === "quick" && (
-              <div className="ff-card p-6">
-                <h2 className="display-serif text-3xl font-medium">Quick Order</h2>
+              <div className="portal-panel ff-card">
+                <h2 className="display-serif text-2xl font-medium sm:text-3xl">Quick Order</h2>
                 <div className="mt-6 divide-y divide-[#eee7da]">
                   {productList.filter((product) => product.active).map((product) => (
-                    <div key={product.id} className="grid gap-4 py-4 md:grid-cols-[80px_1fr_120px_120px] md:items-center">
-                      <div className="relative h-16 overflow-hidden bg-[#f7f2e8]">
+                    <div key={product.id} className="grid grid-cols-[72px_1fr] gap-3 py-4 sm:grid-cols-[80px_1fr] md:grid-cols-[80px_1fr_120px_120px] md:items-center">
+                      <div className="relative h-[72px] overflow-hidden bg-[#f7f2e8] sm:h-20 md:h-16">
                         <Image src={product.image} alt={pick(product.name)} fill sizes="80px" className="object-cover" />
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-950">{pick(product.name)}</p>
+                      <div className="min-w-0">
+                        <p className="break-words font-bold text-slate-950">{pick(product.name)}</p>
                         <p className="text-sm text-slate-500">
                           {formatCurrency(product.restaurantPrice)} · {pick(product.moq)}
                         </p>
                       </div>
-                      <input type="number" min={1} value={quantities[product.id] ?? 1} onChange={(event) => setQuantities((current) => ({ ...current, [product.id]: Number(event.target.value) }))} className="admin-input" />
-                      <button type="button" onClick={() => addQuickOrder(product.id)} className="ff-button ff-button-primary h-11 min-w-0">
+                      <input
+                        type="number"
+                        min={1}
+                        value={quantities[product.id] ?? 1}
+                        onChange={(event) => setQuantities((current) => ({ ...current, [product.id]: Number(event.target.value) }))}
+                        className="admin-input col-span-2 md:col-span-1"
+                      />
+                      <button type="button" onClick={() => addQuickOrder(product.id)} className="ff-button ff-button-primary col-span-2 h-11 min-w-0 md:col-span-1">
                         Add
                       </button>
                     </div>
@@ -187,13 +193,13 @@ export default function RestaurantPortalPage() {
             )}
 
             {tab === "cart" && (
-              <div className="ff-card p-6">
-                <h2 className="display-serif text-3xl font-medium">Submit Order</h2>
+              <div className="portal-panel ff-card">
+                <h2 className="display-serif text-2xl font-medium sm:text-3xl">Submit Order</h2>
                 <div className="mt-5 space-y-3">
                   {cart.lines.map((line) => (
-                    <div key={line.productId} className="flex items-center justify-between border border-[#ddd7cc] p-4">
-                      <div>
-                        <p className="font-bold">{pick(line.product.name)}</p>
+                    <div key={line.productId} className="flex flex-col justify-between gap-3 border border-[#ddd7cc] p-4 sm:flex-row sm:items-center">
+                      <div className="min-w-0">
+                        <p className="break-words font-bold">{pick(line.product.name)}</p>
                         <p className="text-sm text-slate-500">Qty {line.quantity}</p>
                       </div>
                       <p className="font-black text-[#07586b]">{formatCurrency(line.lineTotal)}</p>
@@ -211,20 +217,20 @@ export default function RestaurantPortalPage() {
             )}
 
             {tab === "history" && (
-              <div className="ff-card p-6">
-                <h2 className="display-serif text-3xl font-medium">Order History</h2>
+              <div className="portal-panel ff-card">
+                <h2 className="display-serif text-2xl font-medium sm:text-3xl">Order History</h2>
                 <OrderTable orders={recentOrders} />
               </div>
             )}
 
             {tab === "account" && (
-              <div className="ff-card p-6">
-                <h2 className="display-serif text-3xl font-medium">Account Details</h2>
+              <div className="portal-panel ff-card">
+                <h2 className="display-serif text-2xl font-medium sm:text-3xl">Account Details</h2>
                 <div className="mt-6 grid gap-4 md:grid-cols-2">
                   {Object.entries(customer).map(([key, value]) => (
                     <div key={key} className="border border-[#ddd7cc] p-4">
                       <p className="text-xs font-black uppercase text-slate-400">{key.replace(/([A-Z])/g, " $1")}</p>
-                      <p className="mt-1 font-semibold text-slate-900">{value}</p>
+                      <p className="mt-1 break-words font-semibold text-slate-900">{value}</p>
                     </div>
                   ))}
                 </div>
@@ -249,31 +255,50 @@ function Metric({ label, value }: { label: string; value: string }) {
 function OrderTable({ orders }: { orders: Order[] }) {
   const rows = useMemo(() => orders, [orders]);
   return (
-    <div className="mt-5 overflow-x-auto">
-      <table className="w-full min-w-[620px] text-left text-sm">
-        <thead className="text-xs uppercase text-slate-400">
-          <tr>
-            <th className="py-3">Order</th>
-            <th className="py-3">Date</th>
-            <th className="py-3">Items</th>
-            <th className="py-3">Total</th>
-            <th className="py-3">Status</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#eee7da]">
-          {rows.map((order) => (
-            <tr key={order.id}>
-              <td className="py-4 font-bold">{order.orderNumber}</td>
-              <td className="py-4">{order.createdAt.slice(0, 10)}</td>
-              <td className="py-4">{order.items.reduce((sum, item) => sum + item.quantity, 0)}</td>
-              <td className="py-4 font-bold text-[#07586b]">{formatCurrency(order.total)}</td>
-              <td className="py-4">
-                <StatusBadge value={order.status} />
-              </td>
+    <div className="mt-5">
+      <div className="portal-order-cards md:hidden">
+        {rows.map((order) => (
+          <div key={order.id} className="portal-order-card">
+            <div className="portal-order-row">
+              <div>
+                <p className="font-black text-slate-950">{order.orderNumber}</p>
+                <p className="mt-1 text-xs font-bold text-slate-500">{order.createdAt.slice(0, 10)}</p>
+              </div>
+              <StatusBadge value={order.status} />
+            </div>
+            <div className="portal-order-row text-sm">
+              <span className="font-bold text-slate-500">{order.items.reduce((sum, item) => sum + item.quantity, 0)} items</span>
+              <strong className="text-[#07586b]">{formatCurrency(order.total)}</strong>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[620px] text-left text-sm">
+          <thead className="text-xs uppercase text-slate-400">
+            <tr>
+              <th className="py-3">Order</th>
+              <th className="py-3">Date</th>
+              <th className="py-3">Items</th>
+              <th className="py-3">Total</th>
+              <th className="py-3">Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-[#eee7da]">
+            {rows.map((order) => (
+              <tr key={order.id}>
+                <td className="py-4 font-bold">{order.orderNumber}</td>
+                <td className="py-4">{order.createdAt.slice(0, 10)}</td>
+                <td className="py-4">{order.items.reduce((sum, item) => sum + item.quantity, 0)}</td>
+                <td className="py-4 font-bold text-[#07586b]">{formatCurrency(order.total)}</td>
+                <td className="py-4">
+                  <StatusBadge value={order.status} />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
       {rows.length === 0 && <p className="py-8 text-center text-slate-500">No orders yet.</p>}
     </div>
   );

@@ -38,7 +38,7 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
           {pick(product.packing)} · {product.weight}
         </p>
         <p className="mt-4 line-clamp-2 min-h-10 text-sm leading-5 text-slate-600">{pick(product.description)}</p>
-        <div className="mt-5 flex items-center justify-between gap-3 border-t border-[#eee7da] pt-5">
+        <div className="mt-5 flex flex-col items-stretch justify-between gap-3 border-t border-[#eee7da] pt-5 sm:flex-row sm:items-center">
           <div className="text-left">
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{mode === "restaurant" ? "Restaurant" : "Retail"}</p>
             <p className="text-xl font-black text-[#07586b]">{formatCurrency(price)}</p>
@@ -47,7 +47,7 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
             type="button"
             disabled={!product.active || product.stockStatus === "Out of Stock"}
             onClick={() => cart.add(product.id)}
-            className="inline-flex h-10 items-center justify-center bg-[#07586b] px-4 text-sm font-black text-white hover:bg-[#043f4f] disabled:cursor-not-allowed disabled:bg-slate-300"
+            className="inline-flex h-10 items-center justify-center bg-[#07586b] px-4 text-sm font-black text-white hover:bg-[#043f4f] disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
           >
             {mode === "restaurant" ? <Plus className="mr-2 h-4 w-4" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
             Add

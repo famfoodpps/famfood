@@ -226,47 +226,49 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-[#f7f2e8] pt-[104px]">
       <div className="section-shell py-8">
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-center">
+        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
           <div>
             <p className="ff-eyebrow">Admin system</p>
             <h1 className="display-serif mt-2 break-words text-4xl font-medium text-slate-950 md:text-5xl">FAMFOOD Dashboard</h1>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              window.localStorage.removeItem("famfood-session");
-              router.push("/restaurant/login");
-            }}
-            className="ff-button ff-button-outline bg-white"
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
-          </button>
-          <button type="button" onClick={seedCatalog} className="ff-button ff-button-primary bg-white text-[#07586b]">
-            Seed Catalog
-          </button>
+          <div className="grid gap-3 sm:grid-cols-2 md:min-w-[360px]">
+            <button
+              type="button"
+              onClick={() => {
+                window.localStorage.removeItem("famfood-session");
+                router.push("/restaurant/login");
+              }}
+              className="ff-button ff-button-outline h-11 bg-white"
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
+            <button type="button" onClick={seedCatalog} className="ff-button ff-button-primary h-11 bg-white text-[#07586b]">
+              Seed Catalog
+            </button>
+          </div>
         </div>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[270px_1fr]">
-          <nav className="ff-card p-3">
+        <div className="portal-layout mt-8 grid gap-6 lg:grid-cols-[270px_1fr] lg:gap-8">
+          <nav className="portal-tabs ff-card">
             {tabs.map(({ id, icon: Icon, label }) => (
               <button
                 key={id}
                 type="button"
                 onClick={() => setTab(id)}
-                className={`mb-1 flex w-full items-center px-4 py-3 text-left text-sm font-black ${tab === id ? "bg-[#07586b] text-white" : "text-slate-700 hover:bg-slate-50"}`}
+                className={`portal-tab text-sm font-black ${tab === id ? "bg-[#07586b] text-white" : "text-slate-700 hover:bg-slate-50"}`}
               >
-                <Icon className="mr-3 h-4 w-4" />
+                <Icon className="h-4 w-4 shrink-0" />
                 {label}
               </button>
             ))}
           </nav>
 
-          <section>
+          <section className="min-w-0">
             {adminNotice && <p className="mb-4 border border-[#ddd7cc] bg-white p-3 text-sm font-bold text-[#07586b]">{adminNotice}</p>}
 
             {tab === "dashboard" && (
-              <div className="grid gap-6 md:grid-cols-4">
+              <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
                 <Metric label="Active Products" value={activeProducts.length.toString()} />
                 <Metric label="Pending Orders" value={pendingOrders.length.toString()} />
                 <Metric label="Restaurants" value={customers.length.toString()} />
@@ -290,7 +292,7 @@ export default function AdminPage() {
               >
                 <div className="space-y-4">
                   {managedProducts.map((product) => (
-                    <div key={product.id} className="border border-[#ddd7cc] bg-white p-5">
+                    <div key={product.id} className="border border-[#ddd7cc] bg-white p-4 sm:p-5">
                       <div className="grid gap-5 xl:grid-cols-[170px_1fr]">
                         <div className="min-w-0">
                           <div className="relative aspect-square overflow-hidden bg-[#f7f2e8]">
@@ -384,7 +386,7 @@ export default function AdminPage() {
               <Panel title="Manage categories" description="Edit category names, descriptions, active states and catalog images.">
                 <div className="grid gap-4 md:grid-cols-2">
                   {managedCategories.map((category) => (
-                    <div key={category.id} className="border border-[#ddd7cc] p-5">
+                    <div key={category.id} className="border border-[#ddd7cc] p-4 sm:p-5">
                       <div className="grid gap-2">
                         <input value={category.name.en} onChange={(event) => updateCategory(category.id, { name: { ...category.name, en: event.target.value } })} className="admin-input font-black" />
                         <input value={category.name.zh} onChange={(event) => updateCategory(category.id, { name: { ...category.name, zh: event.target.value } })} className="admin-input" />
@@ -423,23 +425,25 @@ export default function AdminPage() {
                 {customerNotice && <p className="mb-4 border border-[#ddd7cc] bg-[#f7f2e8] p-3 text-sm font-bold text-[#07586b]">{customerNotice}</p>}
                 <div className="grid gap-4">
                   {customers.map((customer) => (
-                    <div key={customer.id} className="border border-[#ddd7cc] bg-white p-5">
-                      <div className="flex flex-col justify-between gap-4 border-b border-[#eee7da] pb-4 md:flex-row md:items-center">
-                        <div>
+                    <div key={customer.id} className="border border-[#ddd7cc] bg-white p-4 sm:p-5">
+                      <div className="flex flex-col justify-between gap-4 border-b border-[#eee7da] pb-4 xl:flex-row xl:items-center">
+                        <div className="min-w-0">
                           <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Restaurant account</p>
-                          <h3 className="display-serif mt-1 text-2xl font-medium text-slate-950">{customer.restaurantName}</h3>
+                          <h3 className="display-serif mt-1 break-words text-2xl font-medium text-slate-950">{customer.restaurantName}</h3>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => createCustomerAccount(customer)}
-                          disabled={creatingCustomerId === customer.id || customer.loginEnabled}
-                          className="ff-button ff-button-primary h-11 disabled:border-slate-300 disabled:bg-slate-300"
-                        >
-                          {customer.loginEnabled ? "Account Active" : creatingCustomerId === customer.id ? "Creating..." : "Create Login Account"}
-                        </button>
-                        <button type="button" onClick={() => saveCustomer(customer)} className="ff-button ff-button-outline h-11 bg-white">
-                          Save Details
-                        </button>
+                        <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[390px]">
+                          <button
+                            type="button"
+                            onClick={() => createCustomerAccount(customer)}
+                            disabled={creatingCustomerId === customer.id || customer.loginEnabled}
+                            className="ff-button ff-button-primary h-11 disabled:border-slate-300 disabled:bg-slate-300"
+                          >
+                            {customer.loginEnabled ? "Account Active" : creatingCustomerId === customer.id ? "Creating..." : "Create Login Account"}
+                          </button>
+                          <button type="button" onClick={() => saveCustomer(customer)} className="ff-button ff-button-outline h-11 bg-white">
+                            Save Details
+                          </button>
+                        </div>
                       </div>
 
                       <div className="mt-5 grid gap-4 md:grid-cols-3">
@@ -537,10 +541,10 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function Panel({ title, description, children, action }: { title: string; description: string; children: React.ReactNode; action?: React.ReactNode }) {
   return (
-    <div className="ff-card p-6 md:col-span-4">
-      <div className="mb-6 flex flex-col justify-between gap-4 md:flex-row md:items-start">
-        <div>
-          <h2 className="display-serif text-3xl font-medium text-slate-950">{title}</h2>
+    <div className="portal-panel ff-card md:col-span-4">
+      <div className="portal-panel-header flex flex-col justify-between gap-4 md:flex-row md:items-start">
+        <div className="min-w-0">
+          <h2 className="display-serif break-words text-2xl font-medium text-slate-950 sm:text-3xl">{title}</h2>
           <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
         </div>
         {action}
@@ -552,40 +556,67 @@ function Panel({ title, description, children, action }: { title: string; descri
 
 function OrdersTable({ orders, onStatusChange }: { orders: Order[]; onStatusChange: (orderId: string, status: OrderStatus) => void }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="text-xs uppercase text-slate-400">
-          <tr>
-            <th className="py-3">Order</th>
-            <th className="py-3">Customer</th>
-            <th className="py-3">Channel</th>
-            <th className="py-3">Total</th>
-            <th className="py-3">Status</th>
-            <th className="py-3">Update</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-[#eee7da]">
-          {orders.map((order) => (
-            <tr key={order.id}>
-              <td className="py-4 font-bold">{order.orderNumber}</td>
-              <td className="py-4">{order.customerName}</td>
-              <td className="py-4">{order.channel}</td>
-              <td className="py-4 font-bold text-[#07586b]">{formatCurrency(order.total)}</td>
-              <td className="py-4">
-                <StatusBadge value={order.status} />
-              </td>
-              <td className="py-4">
-                <select value={order.status} onChange={(event) => onStatusChange(order.id, event.target.value as OrderStatus)} className="h-10 border border-slate-200 px-3 text-sm">
-                  {orderStatuses.map((status) => (
-                    <option key={status}>{status}</option>
-                  ))}
-                </select>
-              </td>
+    <>
+      <div className="portal-order-cards md:hidden">
+        {orders.map((order) => (
+          <div key={order.id} className="portal-order-card">
+            <div className="portal-order-row">
+              <div className="min-w-0">
+                <p className="break-words font-black text-slate-950">{order.orderNumber}</p>
+                <p className="mt-1 break-words text-xs font-bold text-slate-500">{order.customerName}</p>
+              </div>
+              <StatusBadge value={order.status} />
+            </div>
+            <div className="portal-order-row text-sm">
+              <span className="font-bold text-slate-500">{order.channel}</span>
+              <strong className="text-[#07586b]">{formatCurrency(order.total)}</strong>
+            </div>
+            <label className="mt-3 block">
+              <span className="admin-label">Update status</span>
+              <select value={order.status} onChange={(event) => onStatusChange(order.id, event.target.value as OrderStatus)} className="admin-input">
+                {orderStatuses.map((status) => (
+                  <option key={status}>{status}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ))}
+      </div>
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full min-w-[760px] text-left text-sm">
+          <thead className="text-xs uppercase text-slate-400">
+            <tr>
+              <th className="py-3">Order</th>
+              <th className="py-3">Customer</th>
+              <th className="py-3">Channel</th>
+              <th className="py-3">Total</th>
+              <th className="py-3">Status</th>
+              <th className="py-3">Update</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody className="divide-y divide-[#eee7da]">
+            {orders.map((order) => (
+              <tr key={order.id}>
+                <td className="py-4 font-bold">{order.orderNumber}</td>
+                <td className="py-4">{order.customerName}</td>
+                <td className="py-4">{order.channel}</td>
+                <td className="py-4 font-bold text-[#07586b]">{formatCurrency(order.total)}</td>
+                <td className="py-4">
+                  <StatusBadge value={order.status} />
+                </td>
+                <td className="py-4">
+                  <select value={order.status} onChange={(event) => onStatusChange(order.id, event.target.value as OrderStatus)} className="h-10 border border-slate-200 px-3 text-sm">
+                    {orderStatuses.map((status) => (
+                      <option key={status}>{status}</option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
