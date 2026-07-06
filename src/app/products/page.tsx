@@ -12,6 +12,7 @@ import type { Category, Product } from "@/types/catalog";
 export default function ProductsPage() {
   const { locale, pick } = useLanguage();
   const [category, setCategory] = useState("all");
+  const [requestedCategoryGroup, setRequestedCategoryGroup] = useState("all");
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState<Category[]>(seedCategories);
   const [products, setProducts] = useState<Product[]>(seedProducts);
@@ -42,47 +43,85 @@ export default function ProductsPage() {
     return categories.find((item) => item.slug === category || item.id === category) || null;
   }, [categories, category]);
 
+  const categoryGroup = selectedCategory ? selectedCategory.group?.en || "Other" : requestedCategoryGroup;
+
+  const categoryGroups = useMemo(() => {
+    const groups = new Map<string, { key: string; name: Category["group"]; categories: Category[] }>();
+
+    categories
+      .filter((item) => item.active)
+      .forEach((item) => {
+        const key = item.group?.en || "Other";
+        const current = groups.get(key) || { key, name: item.group, categories: [] };
+        current.categories.push(item);
+        groups.set(key, current);
+      });
+
+    return Array.from(groups.values());
+  }, [categories]);
+
+  const activeGroupCategories = useMemo(() => {
+    if (categoryGroup === "all") return categories.filter((item) => item.active);
+    return categories.filter((item) => item.active && (item.group?.en || "Other") === categoryGroup);
+  }, [categories, categoryGroup]);
+
   const visibleProducts = useMemo(() => {
+    const groupCategoryKeys = new Set(activeGroupCategories.flatMap((item) => [item.id, item.slug]));
+
     return products.filter((product) => {
       const categorySlug = selectedCategory?.slug || category;
       const matchesCategory =
-        category === "all" ||
-        getProductCategorySlug(product) === categorySlug ||
-        product.categorySlug === category ||
-        product.categoryId === category;
+        category !== "all"
+          ? getProductCategorySlug(product) === categorySlug || product.categorySlug === category || product.categoryId === category
+          : categoryGroup === "all" ||
+            groupCategoryKeys.has(getProductCategorySlug(product)) ||
+            groupCategoryKeys.has(product.categorySlug || "") ||
+            groupCategoryKeys.has(product.categoryId);
       const target = `${product.name.en} ${product.name.zh} ${product.description.en} ${product.description.zh}`.toLowerCase();
       const matchesQuery = target.includes(query.toLowerCase());
       return product.active && matchesCategory && matchesQuery;
     });
-  }, [category, products, query, selectedCategory]);
+  }, [activeGroupCategories, category, categoryGroup, products, query, selectedCategory]);
+
+  function selectCategory(nextCategory: string) {
+    setCategory(nextCategory);
+  }
+
+  function selectGroup(nextGroup: string) {
+    setRequestedCategoryGroup(nextGroup);
+    setCategory("all");
+  }
 
   return (
     <>
       <PageHero title="Product Center" eyebrow={locale === "zh" ? "FAMFOOD 产品中心" : "FAMFOOD Products"} image="/sample-assets/seafood-table.jpg" />
 
-      <section className="border-b border-[#ddd7cc] bg-[#f7f2e8]">
-        <div className="section-shell flex overflow-x-auto text-sm">
-          <button
-            type="button"
-            onClick={() => setCategory("all")}
-            data-text={locale === "zh" ? "全部" : "All"}
-            className={`category-tab h-16 min-w-32 border-l border-[#ddd7cc] px-7 font-black ${category === "all" ? "active" : ""}`}
-          >
-            <span>{locale === "zh" ? "全部" : "All"}</span>
-          </button>
-          {categories.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setCategory(item.slug)}
-              data-text={pick(item.name)}
-              className={`category-tab h-16 min-w-44 border-l border-[#ddd7cc] px-7 font-black last:border-r ${
-                category === item.slug || category === item.id ? "active" : ""
-              }`}
-            >
-              <span>{pick(item.name)}</span>
+      <section className="border-y border-[#ddd7cc] bg-[#f7f2e8]">
+        <div className="section-shell py-5 md:py-6">
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => selectGroup("all")} className={`category-group-button ${categoryGroup === "all" ? "active" : ""}`}>
+              {locale === "zh" ? "全部" : "All"}
             </button>
-          ))}
+            {categoryGroups.map((group) => (
+              <button key={group.key} type="button" onClick={() => selectGroup(group.key)} className={`category-group-button ${categoryGroup === group.key ? "active" : ""}`}>
+                {pick(group.name)}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {activeGroupCategories.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => selectCategory(item.slug)}
+                className={`category-chip ${category === item.slug || category === item.id ? "active" : ""}`}
+              >
+                <span>{pick(item.name)}</span>
+                {categoryGroup === "all" && <small>{pick(item.group)}</small>}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
