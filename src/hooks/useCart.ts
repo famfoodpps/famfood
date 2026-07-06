@@ -5,8 +5,30 @@ import { products } from "@/data/catalog";
 import type { CartItem, CartLine, Product } from "@/types/catalog";
 
 type CartMode = "public" | "restaurant";
+type CartUpdateDetail = {
+  mode: CartMode;
+  items: CartItem[];
+};
 
 const keyFor = (mode: CartMode) => `famfood-${mode}-cart`;
+const CART_UPDATE_EVENT = "famfood-cart-updated";
+
+function readStoredCart(mode: CartMode) {
+  if (typeof window === "undefined") return [];
+  const stored = window.localStorage.getItem(keyFor(mode));
+  if (!stored) return [];
+  try {
+    const parsed = JSON.parse(stored);
+    return Array.isArray(parsed) ? (parsed as CartItem[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredCart(mode: CartMode, items: CartItem[]) {
+  window.localStorage.setItem(keyFor(mode), JSON.stringify(items));
+  window.dispatchEvent(new CustomEvent<CartUpdateDetail>(CART_UPDATE_EVENT, { detail: { mode, items } }));
+}
 
 export function useCart(mode: CartMode = "public") {
   const [items, setItems] = useState<CartItem[]>([]);
@@ -14,22 +36,27 @@ export function useCart(mode: CartMode = "public") {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    const loadCart = () => setItems(readStoredCart(mode));
+    const onCartUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<CartUpdateDetail>).detail;
+      if (detail?.mode === mode && Array.isArray(detail.items)) setItems(detail.items);
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === keyFor(mode)) loadCart();
+    };
+
     queueMicrotask(() => {
-      const stored = window.localStorage.getItem(keyFor(mode));
-      if (stored) {
-        try {
-          setItems(JSON.parse(stored));
-        } catch {
-          setItems([]);
-        }
-      }
+      loadCart();
       setReady(true);
     });
-  }, [mode]);
 
-  useEffect(() => {
-    if (ready) window.localStorage.setItem(keyFor(mode), JSON.stringify(items));
-  }, [items, mode, ready]);
+    window.addEventListener(CART_UPDATE_EVENT, onCartUpdate);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener(CART_UPDATE_EVENT, onCartUpdate);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [mode]);
 
   useEffect(() => {
     fetch("/api/products")
@@ -54,8 +81,14 @@ export function useCart(mode: CartMode = "public") {
   const total = lines.reduce((sum, line) => sum + line.lineTotal, 0);
   const count = items.reduce((sum, item) => sum + item.quantity, 0);
 
+  function commit(updater: (current: CartItem[]) => CartItem[]) {
+    const nextItems = updater(readStoredCart(mode));
+    setItems(nextItems);
+    writeStoredCart(mode, nextItems);
+  }
+
   function add(productId: string, quantity = 1) {
-    setItems((current) => {
+    commit((current) => {
       const existing = current.find((item) => item.productId === productId);
       if (existing) {
         return current.map((item) =>
@@ -67,7 +100,7 @@ export function useCart(mode: CartMode = "public") {
   }
 
   function update(productId: string, quantity: number) {
-    setItems((current) =>
+    commit((current) =>
       current
         .map((item) => (item.productId === productId ? { ...item, quantity: Math.max(0, quantity) } : item))
         .filter((item) => item.quantity > 0),
@@ -75,11 +108,11 @@ export function useCart(mode: CartMode = "public") {
   }
 
   function remove(productId: string) {
-    setItems((current) => current.filter((item) => item.productId !== productId));
+    commit((current) => current.filter((item) => item.productId !== productId));
   }
 
   function clear() {
-    setItems([]);
+    commit(() => []);
   }
 
   return { add, clear, count, items, lines, ready, remove, total, update };

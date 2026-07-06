@@ -2,7 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, ShoppingCart } from "lucide-react";
+import { Check, Plus, ShoppingCart } from "lucide-react";
+import { useEffect, useState } from "react";
 import { formatCurrency, getCategoryName, getProductCategorySlug } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
 import { useLanguage } from "@/hooks/useLanguage";
@@ -19,6 +20,18 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
   const price = mode === "restaurant" ? product.restaurantPrice : product.publicPrice;
   const categoryName = getCategoryName(getProductCategorySlug(product), locale);
   const hasPrice = price > 0;
+  const [added, setAdded] = useState(false);
+
+  useEffect(() => {
+    if (!added) return;
+    const timeout = window.setTimeout(() => setAdded(false), 1200);
+    return () => window.clearTimeout(timeout);
+  }, [added]);
+
+  function handleAdd() {
+    cart.add(product.id);
+    setAdded(true);
+  }
 
   return (
     <article className="group overflow-hidden border border-[#ddd7cc] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#07586b] hover:shadow-2xl hover:shadow-[#07586b]/10">
@@ -47,11 +60,13 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
           <button
             type="button"
             disabled={!product.active || product.stockStatus === "Out of Stock" || !hasPrice}
-            onClick={() => cart.add(product.id)}
-            className="inline-flex h-10 items-center justify-center bg-[#07586b] px-4 text-sm font-black text-white hover:bg-[#043f4f] disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
+            onClick={handleAdd}
+            className={`inline-flex h-10 items-center justify-center px-4 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto ${
+              added ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#07586b] hover:bg-[#043f4f]"
+            }`}
           >
-            {mode === "restaurant" ? <Plus className="mr-2 h-4 w-4" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
-            {hasPrice ? "Add" : "Ask"}
+            {added ? <Check className="mr-2 h-4 w-4" /> : mode === "restaurant" ? <Plus className="mr-2 h-4 w-4" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
+            {added ? (locale === "zh" ? "已加入" : "Added") : hasPrice ? "Add" : "Ask"}
           </button>
         </div>
       </div>

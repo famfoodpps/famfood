@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { notFound, useParams } from "next/navigation";
-import { MessageCircle, ShoppingCart } from "lucide-react";
+import { Check, MessageCircle, ShoppingCart } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -17,6 +17,7 @@ export default function ProductDetailPage() {
   const { locale, pick } = useLanguage();
   const cart = useCart("public");
   const [catalog, setCatalog] = useState<Product[] | null>(null);
+  const [added, setAdded] = useState(false);
 
   useEffect(() => {
     fetch("/api/products")
@@ -26,6 +27,12 @@ export default function ProductDetailPage() {
       })
       .catch(() => setCatalog(products));
   }, []);
+
+  useEffect(() => {
+    if (!added) return;
+    const timeout = window.setTimeout(() => setAdded(false), 1200);
+    return () => window.clearTimeout(timeout);
+  }, [added]);
 
   if (!catalog) {
     return <div className="min-h-screen bg-white pt-[110px]" />;
@@ -70,9 +77,17 @@ export default function ProductDetailPage() {
               </div>
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <button type="button" disabled={!hasPublicPrice} onClick={() => cart.add(product.id)} className="ff-button ff-button-primary disabled:cursor-not-allowed disabled:bg-slate-300">
-                <ShoppingCart className="h-4 w-4" />
-                {hasPublicPrice ? "Add to Cart" : "Ask on WhatsApp"}
+              <button
+                type="button"
+                disabled={!hasPublicPrice}
+                onClick={() => {
+                  cart.add(product.id);
+                  setAdded(true);
+                }}
+                className={`ff-button disabled:cursor-not-allowed disabled:bg-slate-300 ${added ? "bg-emerald-600 text-white hover:bg-emerald-700" : "ff-button-primary"}`}
+              >
+                {added ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+                {added ? (locale === "zh" ? "已加入购物车" : "Added to Cart") : hasPublicPrice ? "Add to Cart" : "Ask on WhatsApp"}
               </button>
               <a href={productWhatsAppUrl(product, locale)} target="_blank" rel="noreferrer" className="ff-button ff-button-outline">
                 <MessageCircle className="h-4 w-4" />
