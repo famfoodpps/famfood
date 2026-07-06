@@ -28,7 +28,7 @@ export default function ContactPage() {
               </a>
               <a className="flex gap-4 text-slate-700 hover:text-[#07586b]" href={`https://wa.me/${businessSettings.whatsappInternational}`} target="_blank" rel="noreferrer">
                 <MessageCircle className="mt-1 h-5 w-5 shrink-0 text-[#07586b]" />
-                {businessSettings.whatsapp}
+                WhatsApp {businessSettings.whatsapp}
               </a>
               <p className="flex gap-4 text-slate-700">
                 <Clock className="mt-1 h-5 w-5 shrink-0 text-[#07586b]" />
