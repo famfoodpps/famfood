@@ -2,11 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Check, Plus, ShoppingCart } from "lucide-react";
+import { Check, MessageCircle, Plus, ShoppingCart } from "lucide-react";
 import { useEffect, useState } from "react";
 import { formatCurrency, getCategoryName, getProductCategorySlug } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
 import { useLanguage } from "@/hooks/useLanguage";
+import { productWhatsAppUrl } from "@/lib/whatsapp";
 import type { Product } from "@/types/catalog";
 
 type ProductCardProps = {
@@ -57,17 +58,29 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{mode === "restaurant" ? "Restaurant" : "Retail"}</p>
             <p className="text-xl font-black text-[#07586b]">{hasPrice ? formatCurrency(price) : "Ask price"}</p>
           </div>
-          <button
-            type="button"
-            disabled={!product.active || product.stockStatus === "Out of Stock" || !hasPrice}
-            onClick={handleAdd}
-            className={`inline-flex h-10 items-center justify-center px-4 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto ${
-              added ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#07586b] hover:bg-[#043f4f]"
-            }`}
-          >
-            {added ? <Check className="mr-2 h-4 w-4" /> : mode === "restaurant" ? <Plus className="mr-2 h-4 w-4" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
-            {added ? (locale === "zh" ? "已加入" : "Added") : hasPrice ? "Add" : "Ask"}
-          </button>
+          {hasPrice ? (
+            <button
+              type="button"
+              disabled={!product.active || product.stockStatus === "Out of Stock"}
+              onClick={handleAdd}
+              className={`inline-flex h-10 items-center justify-center px-4 text-sm font-black text-white transition disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto ${
+                added ? "bg-emerald-600 hover:bg-emerald-700" : "bg-[#07586b] hover:bg-[#043f4f]"
+              }`}
+            >
+              {added ? <Check className="mr-2 h-4 w-4" /> : mode === "restaurant" ? <Plus className="mr-2 h-4 w-4" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
+              {added ? (locale === "zh" ? "已加入" : "Added") : "Add"}
+            </button>
+          ) : (
+            <a
+              href={productWhatsAppUrl(product, locale)}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-10 items-center justify-center bg-[#07586b] px-4 text-sm font-black text-white transition hover:bg-[#043f4f] sm:w-auto"
+            >
+              <MessageCircle className="mr-2 h-4 w-4" />
+              {locale === "zh" ? "询价" : "Ask"}
+            </a>
+          )}
         </div>
       </div>
     </article>
