@@ -3,10 +3,9 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageCircle, ShoppingCart } from "lucide-react";
+import { ShoppingCart } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { businessSettings } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
 import { LanguageToggle } from "@/components/LanguageToggle";
 
@@ -82,15 +81,6 @@ export function SiteHeader() {
             Cart
             {count > 0 && <span className="ml-2 rounded-full bg-[#c22931] px-2 py-0.5 text-xs text-white">{count}</span>}
           </Link>
-          <a
-            href={`https://wa.me/${businessSettings.whatsappInternational}`}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex h-10 items-center justify-center bg-[#07586b] px-5 text-sm font-black text-white hover:bg-[#043f4f]"
-          >
-            <MessageCircle className="mr-2 h-4 w-4" />
-            WhatsApp
-          </a>
         </div>
 
         <button
@@ -136,10 +126,6 @@ export function SiteHeader() {
             <Link href="/restaurant/login" onClick={() => setOpen(false)} className="mobile-menu-primary">
               Restaurant Login
             </Link>
-            <a href={`https://wa.me/${businessSettings.whatsappInternational}`} target="_blank" rel="noreferrer" className="mobile-menu-secondary">
-              <MessageCircle className="h-4 w-4" />
-              WhatsApp
-            </a>
           </div>
         </div>
       </div>
