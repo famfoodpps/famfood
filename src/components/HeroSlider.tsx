@@ -2,12 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, MessageCircle } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useLayoutEffect, useRef } from "react";
 import { gsap } from "gsap";
 import { Autoplay, Navigation, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
-import { businessSettings, heroSlides } from "@/data/catalog";
+import { heroSlides } from "@/data/catalog";
 import { useLanguage } from "@/hooks/useLanguage";
 
 function AnimatedHeroTitle({ title }: { title: string }) {
@@ -66,10 +66,6 @@ export function HeroSlider() {
                       Product Center
                       <ArrowRight className="h-4 w-4" />
                     </Link>
-                    <a href={`https://wa.me/${businessSettings.whatsappInternational}`} target="_blank" rel="noreferrer" className="ff-button bg-[#c22931] text-white hover:bg-[#a42028]">
-                      <MessageCircle className="h-4 w-4" />
-                      WhatsApp Order
-                    </a>
                     <Link href="/restaurant/login" className="ff-button border border-white/55 text-white hover:bg-white hover:text-[#07586b]">
                       Restaurant Login
                     </Link>

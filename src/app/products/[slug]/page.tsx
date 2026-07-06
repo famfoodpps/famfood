@@ -78,23 +78,17 @@ export default function ProductDetailPage() {
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               {hasPublicPrice ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      cart.add(product.id);
-                      setAdded(true);
-                    }}
-                    className={`ff-button ${added ? "bg-emerald-600 text-white hover:bg-emerald-700" : "ff-button-primary"}`}
-                  >
-                    {added ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
-                    {added ? (locale === "zh" ? "已加入购物车" : "Added to Cart") : "Add to Cart"}
-                  </button>
-                  <a href={productWhatsAppUrl(product, locale)} target="_blank" rel="noreferrer" className="ff-button ff-button-outline">
-                    <MessageCircle className="h-4 w-4" />
-                    Ask on WhatsApp
-                  </a>
-                </>
+                <button
+                  type="button"
+                  onClick={() => {
+                    cart.add(product.id);
+                    setAdded(true);
+                  }}
+                  className={`ff-button ${added ? "bg-emerald-600 text-white hover:bg-emerald-700" : "ff-button-primary"}`}
+                >
+                  {added ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
+                  {added ? (locale === "zh" ? "已加入购物车" : "Added to Cart") : "Add to Cart"}
+                </button>
               ) : (
                 <a href={productWhatsAppUrl(product, locale)} target="_blank" rel="noreferrer" className="ff-button ff-button-primary">
                   <MessageCircle className="h-4 w-4" />
