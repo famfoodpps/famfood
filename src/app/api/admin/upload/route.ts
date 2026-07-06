@@ -8,6 +8,8 @@ export async function POST(request: Request) {
   const formData = await request.formData();
   const file = formData.get("file");
   if (!(file instanceof File)) return NextResponse.json({ error: "Missing file" }, { status: 400 });
+  const folderValue = formData.get("folder");
+  const folder = folderValue === "categories" ? "categories" : "products";
 
   const bytes = Buffer.from(await file.arrayBuffer());
 
@@ -19,7 +21,7 @@ export async function POST(request: Request) {
   }
 
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const path = `products/${Date.now()}-${safeName}`;
+  const path = `${folder}/${Date.now()}-${safeName}`;
   const { error } = await client.storage.from("product-images").upload(path, bytes, {
     contentType: file.type || "application/octet-stream",
     upsert: true,

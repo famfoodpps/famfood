@@ -22,6 +22,8 @@ export type Category = {
   name: LocalizedText;
   description: LocalizedText;
   image: string;
+  group: LocalizedText;
+  classificationKeywords: string[];
   sortOrder: number;
   active: boolean;
 };
@@ -31,6 +33,7 @@ export type Product = {
   slug: string;
   sku: string;
   categoryId: string;
+  categorySlug?: string;
   categoryName?: LocalizedText;
   name: LocalizedText;
   description: LocalizedText;
@@ -101,11 +104,16 @@ export type Order = {
 export type BusinessSettings = {
   brandName: string;
   businessName: string;
+  businessNature: string;
   address: string;
   email: string;
   whatsapp: string;
   whatsappInternational: string;
   mapQuery: string;
+  openingHoursWeekday: string;
+  openingHoursSunday: string;
+  facebookUrl: string;
+  instagramUrl: string;
 };
 
 export type CartItem = {

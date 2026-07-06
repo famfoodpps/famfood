@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { products } from "@/data/catalog";
+import { hasPdfCatalogProducts } from "@/lib/catalog-source";
 import { createAdminSupabase } from "@/lib/supabase";
 import { productFromRow } from "@/lib/db-mappers";
 
@@ -16,5 +17,9 @@ export async function GET() {
     .order("created_at", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ products: data.map(productFromRow), source: "supabase" });
+  const catalog = data.map(productFromRow);
+  if (!hasPdfCatalogProducts(catalog)) {
+    return NextResponse.json({ products: products.filter((product) => product.active), source: "seed-stale-supabase" });
+  }
+  return NextResponse.json({ products: catalog, source: "supabase" });
 }

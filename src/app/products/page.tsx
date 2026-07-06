@@ -5,7 +5,7 @@ import { Search } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { ProductCard } from "@/components/ProductCard";
 import { Reveal } from "@/components/Reveal";
-import { categories as seedCategories, products as seedProducts } from "@/data/catalog";
+import { categories as seedCategories, getProductCategorySlug, products as seedProducts } from "@/data/catalog";
 import { useLanguage } from "@/hooks/useLanguage";
 import type { Category, Product } from "@/types/catalog";
 
@@ -26,7 +26,9 @@ export default function ProductsPage() {
   useEffect(() => {
     Promise.all([fetch("/api/categories").then((response) => response.json()), fetch("/api/products").then((response) => response.json())])
       .then(([categoryPayload, productPayload]) => {
-        if (Array.isArray(categoryPayload.categories)) setCategories(categoryPayload.categories);
+        if (Array.isArray(categoryPayload.categories) && seedCategories.every((seedCategory) => categoryPayload.categories.some((item: Category) => item.slug === seedCategory.slug))) {
+          setCategories(categoryPayload.categories);
+        }
         if (Array.isArray(productPayload.products)) setProducts(productPayload.products);
       })
       .catch(() => {
@@ -35,14 +37,24 @@ export default function ProductsPage() {
       });
   }, []);
 
+  const selectedCategory = useMemo(() => {
+    if (category === "all") return null;
+    return categories.find((item) => item.slug === category || item.id === category) || null;
+  }, [categories, category]);
+
   const visibleProducts = useMemo(() => {
     return products.filter((product) => {
-      const matchesCategory = category === "all" || product.categoryId === category;
+      const categorySlug = selectedCategory?.slug || category;
+      const matchesCategory =
+        category === "all" ||
+        getProductCategorySlug(product) === categorySlug ||
+        product.categorySlug === category ||
+        product.categoryId === category;
       const target = `${product.name.en} ${product.name.zh} ${product.description.en} ${product.description.zh}`.toLowerCase();
       const matchesQuery = target.includes(query.toLowerCase());
       return product.active && matchesCategory && matchesQuery;
     });
-  }, [category, products, query]);
+  }, [category, products, query, selectedCategory]);
 
   return (
     <>
@@ -62,9 +74,11 @@ export default function ProductsPage() {
             <button
               key={item.id}
               type="button"
-              onClick={() => setCategory(item.id)}
+              onClick={() => setCategory(item.slug)}
               data-text={pick(item.name)}
-              className={`category-tab h-16 min-w-44 border-l border-[#ddd7cc] px-7 font-black last:border-r ${category === item.id ? "active" : ""}`}
+              className={`category-tab h-16 min-w-44 border-l border-[#ddd7cc] px-7 font-black last:border-r ${
+                category === item.slug || category === item.id ? "active" : ""
+              }`}
             >
               <span>{pick(item.name)}</span>
             </button>
@@ -82,8 +96,8 @@ export default function ProductsPage() {
               </h2>
               <p className="mt-4 max-w-xl leading-7 text-slate-600">
                 {locale === "zh"
-                  ? "浏览 FAMFOOD 海鲜、日式产品、冷冻食品、饮品与促销产品。"
-                  : "Browse FAMFOOD seafood, Japanese products, frozen food, drinks and promotions."}
+                  ? "浏览 FAMFOOD 海鲜、肉类、冷冻食品、烹饪干货、饮品与配套优惠。"
+                  : "Browse FAMFOOD seafood, meat, frozen food, cooking essentials, drinks and bundle offers."}
               </p>
             </div>
             <label className="relative block">

@@ -5,6 +5,7 @@ type Row = Record<string, unknown>;
 const str = (value: unknown, fallback = "") => (typeof value === "string" ? value : fallback);
 const bool = (value: unknown, fallback = false) => (typeof value === "boolean" ? value : fallback);
 const num = (value: unknown, fallback = 0) => (typeof value === "number" ? value : Number(value ?? fallback) || fallback);
+const strArray = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
 
 export function categoryFromRow(row: Row): Category {
   return {
@@ -13,6 +14,8 @@ export function categoryFromRow(row: Row): Category {
     name: { en: str(row.name_en), zh: str(row.name_zh) },
     description: { en: str(row.description_en), zh: str(row.description_zh) },
     image: str(row.image_url),
+    group: { en: str(row.group_en), zh: str(row.group_zh) },
+    classificationKeywords: strArray(row.classification_keywords),
     sortOrder: num(row.sort_order),
     active: bool(row.active, true),
   };
@@ -26,6 +29,9 @@ export function categoryToRow(category: Category) {
     description_en: category.description.en,
     description_zh: category.description.zh,
     image_url: category.image,
+    group_en: category.group?.en || "",
+    group_zh: category.group?.zh || "",
+    classification_keywords: category.classificationKeywords || [],
     sort_order: category.sortOrder,
     active: category.active,
   };
@@ -38,6 +44,7 @@ export function productFromRow(row: Row): Product {
     slug: str(row.slug),
     sku: str(row.sku),
     categoryId: str(row.category_id),
+    categorySlug: category ? str(category.slug) : undefined,
     categoryName: category ? { en: str(category.name_en), zh: str(category.name_zh) } : undefined,
     name: { en: str(row.name_en), zh: str(row.name_zh) },
     description: { en: str(row.description_en), zh: str(row.description_zh) },
@@ -162,11 +169,16 @@ export function settingsFromRow(row: Row | null | undefined, fallback: BusinessS
   return {
     brandName: str(row.brand_name, fallback.brandName),
     businessName: str(row.business_name, fallback.businessName),
+    businessNature: str(row.business_nature, fallback.businessNature),
     address: str(row.address, fallback.address),
     email: str(row.email, fallback.email),
     whatsapp: str(row.whatsapp, fallback.whatsapp),
     whatsappInternational: str(row.whatsapp_international, fallback.whatsappInternational),
     mapQuery: str(row.map_query, fallback.mapQuery),
+    openingHoursWeekday: str(row.opening_hours_weekday, fallback.openingHoursWeekday),
+    openingHoursSunday: str(row.opening_hours_sunday, fallback.openingHoursSunday),
+    facebookUrl: str(row.facebook_url, fallback.facebookUrl),
+    instagramUrl: str(row.instagram_url, fallback.instagramUrl),
   };
 }
 
@@ -174,10 +186,15 @@ export function settingsToRow(settings: BusinessSettings) {
   return {
     brand_name: settings.brandName,
     business_name: settings.businessName,
+    business_nature: settings.businessNature,
     address: settings.address,
     email: settings.email,
     whatsapp: settings.whatsapp,
     whatsapp_international: settings.whatsappInternational,
     map_query: settings.mapQuery,
+    opening_hours_weekday: settings.openingHoursWeekday,
+    opening_hours_sunday: settings.openingHoursSunday,
+    facebook_url: settings.facebookUrl,
+    instagram_url: settings.instagramUrl,
   };
 }

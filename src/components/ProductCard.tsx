@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Plus, ShoppingCart } from "lucide-react";
-import { formatCurrency, getCategoryName } from "@/data/catalog";
+import { formatCurrency, getCategoryName, getProductCategorySlug } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
 import { useLanguage } from "@/hooks/useLanguage";
 import type { Product } from "@/types/catalog";
@@ -17,7 +17,8 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
   const cart = useCart(mode);
   const { locale, pick } = useLanguage();
   const price = mode === "restaurant" ? product.restaurantPrice : product.publicPrice;
-  const categoryName = product.categoryName ? pick(product.categoryName) : getCategoryName(product.categoryId, locale);
+  const categoryName = getCategoryName(getProductCategorySlug(product), locale);
+  const hasPrice = price > 0;
 
   return (
     <article className="group overflow-hidden border border-[#ddd7cc] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#07586b] hover:shadow-2xl hover:shadow-[#07586b]/10">
@@ -41,16 +42,16 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
         <div className="mt-5 flex flex-col items-stretch justify-between gap-3 border-t border-[#eee7da] pt-5 sm:flex-row sm:items-center">
           <div className="text-left">
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{mode === "restaurant" ? "Restaurant" : "Retail"}</p>
-            <p className="text-xl font-black text-[#07586b]">{formatCurrency(price)}</p>
+            <p className="text-xl font-black text-[#07586b]">{hasPrice ? formatCurrency(price) : "Ask price"}</p>
           </div>
           <button
             type="button"
-            disabled={!product.active || product.stockStatus === "Out of Stock"}
+            disabled={!product.active || product.stockStatus === "Out of Stock" || !hasPrice}
             onClick={() => cart.add(product.id)}
             className="inline-flex h-10 items-center justify-center bg-[#07586b] px-4 text-sm font-black text-white hover:bg-[#043f4f] disabled:cursor-not-allowed disabled:bg-slate-300 sm:w-auto"
           >
             {mode === "restaurant" ? <Plus className="mr-2 h-4 w-4" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
-            Add
+            {hasPrice ? "Add" : "Ask"}
           </button>
         </div>
       </div>

@@ -11,6 +11,33 @@ export async function POST(request: Request) {
   const { error: categoryError } = await client.from("categories").upsert(categories.map(categoryToRow), { onConflict: "slug" });
   if (categoryError) return NextResponse.json({ error: categoryError.message }, { status: 500 });
 
+  const oldCategorySlugs = [
+    "japanese-products",
+    "seafood",
+    "juice-drinks",
+    "sauces-seasoning",
+    "promotion",
+    "fish",
+    "fillet",
+    "oyster",
+    "meat-poultry",
+    "frozen-food",
+    "finger-food",
+    "steamboat-oden",
+    "dim-sum-bun",
+    "japanese-ingredients",
+    "bbq",
+    "cooking-essentials",
+    "dessert",
+    "halal-certified",
+    "vegetable-fruits",
+    "bundle-offer",
+    "juice",
+    "dry-item",
+  ];
+  const { error: deactivateCategoryError } = await client.from("categories").update({ active: false }).in("slug", oldCategorySlugs);
+  if (deactivateCategoryError) return NextResponse.json({ error: deactivateCategoryError.message }, { status: 500 });
+
   const { data: categoryRows, error: categoryReadError } = await client.from("categories").select("id, slug");
   if (categoryReadError) return NextResponse.json({ error: categoryReadError.message }, { status: 500 });
   const categoryIdBySlug = new Map((categoryRows || []).map((category) => [category.slug, category.id]));
@@ -21,6 +48,10 @@ export async function POST(request: Request) {
   }));
   const { error: productError } = await client.from("products").upsert(productRows, { onConflict: "slug" });
   if (productError) return NextResponse.json({ error: productError.message }, { status: 500 });
+
+  const productSlugs = products.map((product) => product.slug);
+  const { error: deactivateProductError } = await client.from("products").update({ active: false }).not("slug", "in", `(${productSlugs.join(",")})`);
+  if (deactivateProductError) return NextResponse.json({ error: deactivateProductError.message }, { status: 500 });
 
   const { data: existingSetting } = await client.from("business_settings").select("id").limit(1).maybeSingle();
   const settingRow = settingsToRow(businessSettings);

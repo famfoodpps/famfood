@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { demoOrders, products } from "@/data/catalog";
 import { orderFromRow, productFromRow } from "@/lib/db-mappers";
+import { hasPdfCatalogProducts } from "@/lib/catalog-source";
 import { createAdminSupabase, getBearerProfile } from "@/lib/supabase";
 import type { CartItem } from "@/types/catalog";
 
@@ -21,8 +22,11 @@ export async function POST(request: Request) {
   const client = createAdminSupabase();
   let catalog = products;
   if (client) {
-    const { data: dbProducts } = await client.from("products").select("*, categories(name_en, name_zh)").eq("active", true);
-    if (dbProducts) catalog = dbProducts.map(productFromRow);
+    const { data: dbProducts } = await client.from("products").select("*, categories(slug, name_en, name_zh)").eq("active", true);
+    if (dbProducts) {
+      const dbCatalog = dbProducts.map(productFromRow);
+      catalog = hasPdfCatalogProducts(dbCatalog) ? dbCatalog : products;
+    }
   }
 
   const lines = items

@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "FAMFOOD | Premium Seafood & Food Supplier",
   description:
-    "FAMFOOD Product Enterprise supplies seafood, frozen food, Japanese products and restaurant food supply in Kuching, Sarawak.",
+    "FAMFOOD Enterprise supplies seafood, juice, frozen food and restaurant food supply in Kuching, Sarawak.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

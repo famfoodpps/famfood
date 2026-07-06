@@ -39,10 +39,17 @@ create table if not exists public.categories (
   description_en text,
   description_zh text,
   image_url text,
+  group_en text,
+  group_zh text,
+  classification_keywords text[] not null default '{}',
   sort_order integer not null default 0,
   active boolean not null default true,
   created_at timestamptz not null default now()
 );
+
+alter table public.categories add column if not exists group_en text;
+alter table public.categories add column if not exists group_zh text;
+alter table public.categories add column if not exists classification_keywords text[] not null default '{}';
 
 create table if not exists public.products (
   id uuid primary key default gen_random_uuid(),
@@ -149,14 +156,25 @@ create table if not exists public.order_items (
 create table if not exists public.business_settings (
   id uuid primary key default gen_random_uuid(),
   brand_name text not null default 'FAMFOOD',
-  business_name text not null default 'FAMFOOD Product Enterprise',
+  business_name text not null default 'FAMFOOD Enterprise',
+  business_nature text,
   address text,
   email text,
   whatsapp text,
   whatsapp_international text,
   map_query text,
+  opening_hours_weekday text,
+  opening_hours_sunday text,
+  facebook_url text,
+  instagram_url text,
   updated_at timestamptz not null default now()
 );
+
+alter table public.business_settings add column if not exists business_nature text;
+alter table public.business_settings add column if not exists opening_hours_weekday text;
+alter table public.business_settings add column if not exists opening_hours_sunday text;
+alter table public.business_settings add column if not exists facebook_url text;
+alter table public.business_settings add column if not exists instagram_url text;
 
 alter table public.profiles enable row level security;
 alter table public.categories enable row level security;
@@ -303,24 +321,110 @@ with check (bucket_id = 'product-images' and public.current_app_role() = 'admin'
 insert into public.business_settings (
   brand_name,
   business_name,
+  business_nature,
   address,
   email,
   whatsapp,
   whatsapp_international,
-  map_query
-) values (
+  map_query,
+  opening_hours_weekday,
+  opening_hours_sunday,
+  facebook_url,
+  instagram_url
+)
+select
   'FAMFOOD',
-  'FAMFOOD Product Enterprise',
-  '15, Jalan Ensing Timur, 93250 Kuching, Sarawak, Malaysia',
+  'FAMFOOD Enterprise',
+  'Seafoods and Juice Retails & Supplies',
+  '15, Jalan Ensing Timur, Kuching, Malaysia, 93250 Kuching, Sarawak, Malaysia',
   'famfpe@gmail.com',
   '011-1246 0284',
   '601112460284',
-  '15, Jalan Ensing Timur, 93250 Kuching, Sarawak, Malaysia'
-) on conflict do nothing;
+  '15, Jalan Ensing Timur, Kuching, Malaysia, 93250 Kuching, Sarawak, Malaysia',
+  'Monday - Saturday: 9:00 AM - 6:00 PM',
+  'Sunday: 9:00 AM - 2:00 PM',
+  'https://www.facebook.com/famfpe',
+  'https://www.instagram.com/fppe9878/'
+where not exists (select 1 from public.business_settings);
 
-insert into public.categories (slug, name_en, name_zh, description_en, description_zh, image_url, sort_order)
+update public.business_settings
+set
+  brand_name = 'FAMFOOD',
+  business_name = 'FAMFOOD Enterprise',
+  business_nature = 'Seafoods and Juice Retails & Supplies',
+  address = '15, Jalan Ensing Timur, Kuching, Malaysia, 93250 Kuching, Sarawak, Malaysia',
+  email = 'famfpe@gmail.com',
+  whatsapp = '011-1246 0284',
+  whatsapp_international = '601112460284',
+  map_query = '15, Jalan Ensing Timur, Kuching, Malaysia, 93250 Kuching, Sarawak, Malaysia',
+  opening_hours_weekday = 'Monday - Saturday: 9:00 AM - 6:00 PM',
+  opening_hours_sunday = 'Sunday: 9:00 AM - 2:00 PM',
+  facebook_url = 'https://www.facebook.com/famfpe',
+  instagram_url = 'https://www.instagram.com/fppe9878/',
+  updated_at = now();
+
+insert into public.categories (slug, name_en, name_zh, description_en, description_zh, image_url, group_en, group_zh, classification_keywords, sort_order, active)
 values
-  ('japanese-products', 'Japanese Products', '日式产品', 'Unagi, sushi toppings, sashimi ingredients and Japanese restaurant essentials.', '蒲烧鳗鱼、寿司配料、刺身食材与日式餐厅常备品。', '/famfood-assets/497638812_18059586122513729_3570255470813858596_n.webp', 1),
-  ('seafood', 'Seafood', '海鲜', 'Frozen prawns, scallop, squid, crab, fish and premium seafood supply.', '冷冻虾、带子、鱿鱼、蟹肉、鱼类与高级海鲜供应。', '/famfood-assets/497812300_18059587145513729_7460572064932794637_n.webp', 2),
-  ('frozen-food', 'Frozen Food', '冷冻食品', 'Convenient frozen meats and kitchen staples for homes and food businesses.', '适合家庭与餐饮业的冷冻肉类及厨房常备食品。', '/famfood-assets/476398550_18048900926513729_1554981993386280179_n.webp', 3)
-on conflict (slug) do nothing;
+  ('special-promotion-sales', 'Special Promotion Sales', '特别促销', 'Retail promotion products from the July 2026 catalog.', '来自 2026 年 7 月零售目录的促销产品。', '/famfood-assets/categories/special-promotion-sales-single.jpg', 'Retail Catalog', '零售目录', array['promotion', 'special promotion', 'offer'], 1, true),
+  ('whole-fish', 'Whole Fish', '鱼', 'Whole fish and fish-head selections from the FAMFOOD catalogs.', 'FAMFOOD 目录里的整鱼与鱼头产品。', '/famfood-assets/categories/whole-fish-single.jpg', 'Seafood', '海鲜类', array['whole fish', 'fish head', 'pomfret', 'tilapia', 'salmon', 'seabass'], 2, true),
+  ('fish-fillet', 'Fish Fillet', '鱼片', 'Fish fillet, fish slice, steak cut and prepared fish meat.', '鱼片、鱼切片、鱼扒与处理好的鱼肉。', '/famfood-assets/categories/fish-fillet-single.jpg', 'Seafood', '海鲜类', array['fillet', 'fish slice', 'fish meat', 'steak cut', 'fish paste'], 3, true),
+  ('sea-cucumber', 'Sea Cucumber', '海参', 'Sea cucumber, fish lips, jellyfish and related soup ingredients.', '海参、鱼唇、海蜇与汤料相关食材。', '/famfood-assets/categories/sea-cucumber-single.jpg', 'Seafood', '海鲜类', array['sea cucumber', 'fish lips', 'jellyfish', 'shark fin'], 4, true),
+  ('prawn', 'Prawn', '虾', 'Prawn, shrimp, lobster, crayfish and prawn meat.', '虾、虾仁、龙虾、小龙虾与虾肉。', '/famfood-assets/categories/prawn-single.jpg', 'Seafood', '海鲜类', array['prawn', 'shrimp', 'lobster', 'crayfish'], 5, true),
+  ('squid', 'Squid', '鱿鱼', 'Squid, cuttlefish, octopus and squid cut products.', '鱿鱼、墨鱼、章鱼与鱿鱼切割产品。', '/famfood-assets/categories/squid-single.jpg', 'Seafood', '海鲜类', array['squid', 'cuttlefish', 'octopus', 'tentacle'], 6, true),
+  ('prawn-squid', 'Prawn & Squid', '虾 & 鱿鱼', 'Retail prawn and squid products from the July 2026 catalog.', '2026 年 7 月零售目录中的虾与鱿鱼产品。', '/famfood-assets/categories/prawn-squid-single.jpg', 'Retail Catalog', '零售目录', array['prawn', 'shrimp', 'squid'], 7, true),
+  ('shell', 'Shell', '贝壳类', 'Oyster, clam, mussel, abalone and shell seafood.', '生蚝、蛤、青口、鲍鱼与贝壳类海鲜。', '/famfood-assets/categories/shell-single.jpg', 'Seafood', '海鲜类', array['oyster', 'clam', 'mussel', 'abalone', 'shell'], 8, true),
+  ('crab', 'Crab', '蟹', 'Crab, crab meat, crab claw and crab sticks.', '蟹、蟹肉、蟹钳与蟹柳产品。', '/famfood-assets/categories/crab-single.jpg', 'Seafood', '海鲜类', array['crab', 'crab meat', 'crab claw', 'crab stick'], 9, true),
+  ('scallop', 'Scallop', '带子', 'Scallop, hotate and shell scallop products.', '带子、帆立贝与半壳带子产品。', '/famfood-assets/categories/scallop-single.jpg', 'Seafood', '海鲜类', array['scallop', 'hotate'], 10, true),
+  ('meat-series', 'Meat Series', '肉类', 'Retail meat products including beef, lamb, chicken and duck items.', '零售目录中的牛肉、羊肉、鸡肉与鸭肉产品。', '/famfood-assets/categories/meat-series-single.jpg', 'Meat & Poultry', '肉类', array['meat', 'beef', 'lamb', 'chicken', 'duck'], 11, true),
+  ('chicken', 'Chicken', '鸡肉', 'Chicken cuts and poultry products.', '鸡肉切割与家禽产品。', '/famfood-assets/categories/chicken-single.jpg', 'Meat & Poultry', '肉类', array['chicken'], 12, true),
+  ('beef', 'Beef', '牛肉', 'Beef cuts, brisket, tenderloin, minced beef and beef rolls.', '牛肉切割、牛腩、牛柳、牛肉碎与牛肉卷。', '/famfood-assets/categories/beef-single.jpg', 'Meat & Poultry', '肉类', array['beef', 'steak', 'brisket', 'tenderloin'], 13, true),
+  ('buffalo', 'Buffalo (Allana)', '水牛肉', 'Allana buffalo meat cuts from the wholesale catalog.', '批发目录中的 Allana 水牛肉切割。', '/famfood-assets/categories/buffalo-single.jpg', 'Meat & Poultry', '肉类', array['buffalo', 'allana'], 14, true),
+  ('lamb', 'Lamb', '羊肉', 'Lamb slice, lamb chop and other lamb products.', '羊肉片、羊排与其他羊肉产品。', '/famfood-assets/categories/lamb-single.jpg', 'Meat & Poultry', '肉类', array['lamb slice', 'lamb chop', 'lamb'], 15, true),
+  ('duck', 'Duck', '鸭肉', 'Duck cuts, smoked duck and prepared duck products.', '鸭肉切割、烟熏鸭与预制鸭肉产品。', '/famfood-assets/categories/duck-single.jpg', 'Meat & Poultry', '肉类', array['duck', 'smoked duck'], 16, true),
+  ('soup', 'Soup', '汤', 'Soup ingredients from the retail catalog.', '零售目录中的汤类食材。', '/famfood-assets/categories/soup-single.jpg', 'Frozen & Ready Food', '冷冻 / 即食类', array['soup', 'fish lips', 'sea cucumber'], 17, true),
+  ('japanese', 'Japanese', '日式', 'Japanese seafood, noodles, sauces and restaurant ingredients.', '日式海鲜、面类、酱料与餐厅食材。', '/famfood-assets/categories/japanese-single.jpg', 'Japanese', '日式', array['japanese', 'unagi', 'miso', 'sushi', 'wakame', 'ebi'], 18, true),
+  ('steamboat', 'Steamboat', '火锅', 'Hotpot items, oden items, fish balls and soup-ready ingredients.', '火锅料、关东煮、鱼丸与汤品食材。', '/famfood-assets/categories/steamboat-single.jpg', 'Frozen & Ready Food', '冷冻 / 即食类', array['hotpot', 'oden', 'fish balls', 'steamboat'], 19, true),
+  ('others', 'Others', '其他', 'Frozen ready food, snacks, dim sum, fries, buns and miscellaneous catalog items.', '冷冻即食、炸物、点心、薯条、包点与其他目录产品。', '/famfood-assets/categories/others-single.jpg', 'Frozen & Ready Food', '冷冻 / 即食类', array['others', 'fries', 'bun', 'dumpling', 'snack', 'sausage', 'mochi'], 20, true),
+  ('seasonings-sauces', 'Seasonings & Sauces', '调味料 / 酱料', 'Sauce, seasoning, soup base and cooking support items.', '酱料、调味料、汤底与烹饪辅助产品。', '/famfood-assets/categories/seasonings-sauces-single.jpg', 'Cooking & Dry Items', '烹饪 / 干货类', array['sauce', 'seasoning', 'paste', 'pepper', 'miso'], 21, true),
+  ('vegetarian', 'Vegetarian', '素食', 'Vegetarian products and meat-free food selections.', '素食产品与无肉食品选择。', '/famfood-assets/categories/vegetarian-single.jpg', 'Special Categories', '特别分类', array['vegetarian', 'meat-free', 'plant based'], 22, true),
+  ('fruits', 'Fruits', '水果', 'Frozen fruits and berries from the wholesale catalog.', '批发目录中的冷冻水果与莓果。', '/famfood-assets/categories/fruits-single.jpg', 'Special Categories', '特别分类', array['fruits', 'berries', 'strawberry', 'blueberry'], 23, true),
+  ('ice-cream', 'Ice-Cream', '冰淇淋', 'Ice-cream, sorbet and frozen dessert items.', '冰淇淋、雪葩与冷冻甜品。', '/famfood-assets/categories/ice-cream-single.jpg', 'Special Categories', '特别分类', array['ice cream', 'sorbet'], 24, true),
+  ('fresh-juice', 'Fresh Juice', '鲜榨果汁', 'Fresh juice, smoothies and milkshake drinks.', '鲜榨果汁、冰沙与奶昔饮品。', '/famfood-assets/categories/fresh-juice-single.jpg', 'Special Categories', '特别分类', array['juice', 'smoothie', 'milkshake'], 25, true)
+on conflict (slug) do update set
+  name_en = excluded.name_en,
+  name_zh = excluded.name_zh,
+  description_en = excluded.description_en,
+  description_zh = excluded.description_zh,
+  image_url = excluded.image_url,
+  group_en = excluded.group_en,
+  group_zh = excluded.group_zh,
+  classification_keywords = excluded.classification_keywords,
+  sort_order = excluded.sort_order,
+  active = excluded.active;
+
+update public.categories
+set active = false
+where slug in (
+  'japanese-products',
+  'seafood',
+  'juice-drinks',
+  'sauces-seasoning',
+  'promotion',
+  'fish',
+  'fillet',
+  'oyster',
+  'meat-poultry',
+  'frozen-food',
+  'finger-food',
+  'steamboat-oden',
+  'dim-sum-bun',
+  'japanese-ingredients',
+  'bbq',
+  'cooking-essentials',
+  'dessert',
+  'halal-certified',
+  'vegetable-fruits',
+  'bundle-offer',
+  'juice',
+  'dry-item'
+);

@@ -1,6 +1,6 @@
 # FAMFOOD New Webapp
 
-Fresh Next.js full-stack webapp for FAMFOOD Product Enterprise.
+Fresh Next.js full-stack webapp for FAMFOOD Enterprise.
 
 ## Included
 

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { PageHero } from "@/components/PageHero";
 import { Reveal } from "@/components/Reveal";
+import { businessSettings } from "@/data/catalog";
 import { useLanguage } from "@/hooks/useLanguage";
 
 export default function AboutPage() {
@@ -19,15 +20,16 @@ export default function AboutPage() {
             </div>
           </Reveal>
           <Reveal delay={0.1}>
-            <p className="ff-eyebrow">FAMFOOD Product Enterprise</p>
-            <h1 className="ff-title mt-4">{locale === "zh" ? "高级海鲜与冷冻食品供应伙伴。" : "Premium seafood and frozen food supply partner."}</h1>
+            <p className="ff-eyebrow">{businessSettings.businessName}</p>
+            <h1 className="ff-title mt-4">{locale === "zh" ? "海鲜、果汁与食品供应伙伴。" : "Seafood, juice and food supply partner."}</h1>
             <p className="mt-6 text-lg leading-9 text-slate-600">
               {locale === "zh"
-                ? "FAMFOOD 扎根古晋，专注供应海鲜、冷冻食品、日式产品与饮品，为餐厅、零售商与家庭客户提供方便可靠的采购体验。"
-                : "FAMFOOD is based in Kuching and focuses on seafood, frozen food, Japanese products and drinks, serving restaurants, retailers and homes with a convenient and reliable catalog experience."}
+                ? "FAMFOOD 扎根古晋，专注供应海鲜、果汁、冷冻食品、即食食材与烹饪干货，为餐厅、零售商与家庭客户提供方便可靠的采购体验。"
+                : "FAMFOOD is based in Kuching and focuses on seafood, juice, frozen food, ready food and cooking essentials, serving restaurants, retailers and homes with a convenient and reliable catalog experience."}
             </p>
+            <p className="mt-4 font-black text-[#07586b]">{businessSettings.businessNature}</p>
             <div className="mt-8 grid gap-4 sm:grid-cols-3">
-              {["B2B Supply", "Retail Orders", "Kuching Support"].map((item) => (
+              {["Seafoods", "Juice Retail", "Kuching Supply"].map((item) => (
                 <div key={item} className="border border-[#ddd7cc] p-5">
                   <p className="text-3xl font-black text-[#07586b]">{item.split(" ")[0]}</p>
                   <p className="mt-2 text-sm text-slate-600">{item}</p>

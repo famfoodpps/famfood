@@ -4,7 +4,7 @@
 
 insert into public.profiles (id, role, display_name, phone)
 values (
-  'REPLACE_WITH_SUPABASE_AUTH_USER_UUID',
+  'famfpe@gmail.com',
   'admin',
   'FAMFOOD Owner',
   null

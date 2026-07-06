@@ -53,7 +53,7 @@ export function SiteHeader() {
           <div className="min-w-0">
             <p className={`text-xl font-black leading-none ${dark ? "text-white" : "text-[#07586b]"}`}>FAMFOOD</p>
             <p className={`text-[10px] font-black uppercase tracking-[0.24em] ${dark ? "text-white/78" : "text-slate-500"}`}>
-              Products Enterprise
+              Enterprise
             </p>
           </div>
         </Link>

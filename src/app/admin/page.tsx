@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Boxes, Building2, ClipboardList, LayoutDashboard, LogOut, Plus, Save, Settings, Tags, Upload, Users } from "lucide-react";
+import { Boxes, Building2, ChevronDown, ClipboardList, Download, LayoutDashboard, LogOut, Plus, Save, Search, Settings, Tags, Upload, Users } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { businessSettings, categories, demoOrders, formatCurrency, orderStatuses, products, restaurantCustomers } from "@/data/catalog";
 import type { BusinessSettings, Category, Order, OrderStatus, Product, RestaurantCustomer } from "@/types/catalog";
@@ -32,6 +32,12 @@ export default function AdminPage() {
   const [creatingCustomerId, setCreatingCustomerId] = useState<string | null>(null);
   const [customerNotice, setCustomerNotice] = useState("");
   const [adminNotice, setAdminNotice] = useState("");
+  const [priceNotice, setPriceNotice] = useState("");
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const [productSearch, setProductSearch] = useState("");
+  const [productCategoryFilter, setProductCategoryFilter] = useState("all");
+  const [productStatusFilter, setProductStatusFilter] = useState("all");
+  const [productCatalogFilter, setProductCatalogFilter] = useState("all");
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -54,6 +60,35 @@ export default function AdminPage() {
   const activeProducts = managedProducts.filter((product) => product.active);
   const pendingOrders = orders.filter((order) => order.status === "Pending");
   const featured = managedProducts.filter((product) => product.featured);
+  const categoryLookup = useMemo(() => {
+    const map = new Map<string, Category>();
+    managedCategories.forEach((category) => {
+      map.set(category.id, category);
+      map.set(category.slug, category);
+    });
+    return map;
+  }, [managedCategories]);
+  const filteredProducts = useMemo(() => {
+    const target = productSearch.trim().toLowerCase();
+    return managedProducts.filter((product) => {
+      const category = categoryLookup.get(product.categorySlug || product.categoryId);
+      const categoryKey = category?.slug || product.categorySlug || product.categoryId;
+      const matchesSearch =
+        !target ||
+        `${product.sku} ${product.slug} ${product.name.en} ${product.name.zh} ${product.description.en} ${product.description.zh}`.toLowerCase().includes(target);
+      const matchesCategory = productCategoryFilter === "all" || categoryKey === productCategoryFilter || product.categoryId === productCategoryFilter;
+      const matchesStatus =
+        productStatusFilter === "all" ||
+        (productStatusFilter === "active" && product.active) ||
+        (productStatusFilter === "inactive" && !product.active) ||
+        product.stockStatus === productStatusFilter;
+      const matchesCatalog =
+        productCatalogFilter === "all" ||
+        (productCatalogFilter === "retail" && !product.sku.startsWith("W")) ||
+        (productCatalogFilter === "wholesale" && product.sku.startsWith("W"));
+      return matchesSearch && matchesCategory && matchesStatus && matchesCatalog;
+    });
+  }, [categoryLookup, managedProducts, productCatalogFilter, productCategoryFilter, productSearch, productStatusFilter]);
 
   function updateProduct(productId: string, patch: Partial<Product>) {
     setManagedProducts((current) => current.map((product) => (product.id === productId ? { ...product, ...patch } : product)));
@@ -171,6 +206,57 @@ export default function AdminPage() {
     }
   }
 
+  async function saveFilteredPrices() {
+    try {
+      let saved = 0;
+      for (const product of filteredProducts) {
+        const isSeedId = product.id.startsWith("p-") || product.id.startsWith("local-");
+        const response = await adminFetch("/api/admin/products", {
+          method: isSeedId ? "POST" : "PATCH",
+          body: JSON.stringify(product),
+        });
+        const payload = await response.json();
+        if (payload.product) updateProduct(product.id, payload.product);
+        saved += 1;
+      }
+      setPriceNotice(`Saved prices for ${saved} filtered products.`);
+    } catch (caught) {
+      setPriceNotice(caught instanceof Error ? caught.message : "Unable to save filtered prices.");
+    }
+  }
+
+  function downloadFilteredPriceCsv() {
+    const rows = filteredProducts.map((product) => {
+      const category = categoryLookup.get(product.categorySlug || product.categoryId);
+      return [
+        product.sku,
+        product.slug,
+        product.name.en,
+        product.publicPrice,
+        product.restaurantPrice,
+        category?.slug || product.categorySlug || product.categoryId,
+        product.stockStatus,
+        product.active ? "TRUE" : "FALSE",
+      ];
+    });
+    const csv = [
+      ["sku", "slug", "name", "publicPrice", "restaurantPrice", "category", "stockStatus", "active"],
+      ...rows,
+    ]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `famfood-price-list-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    setPriceNotice(`Downloaded ${filteredProducts.length} filtered products as CSV.`);
+  }
+
   async function saveCategory(category: Category) {
     try {
       const response = await adminFetch("/api/admin/categories", { method: "PATCH", body: JSON.stringify(category) });
@@ -201,6 +287,40 @@ export default function AdminPage() {
       setAdminNotice("Business settings saved.");
     } catch (caught) {
       setAdminNotice(caught instanceof Error ? caught.message : "Unable to save settings.");
+    }
+  }
+
+  async function uploadPriceCsv(file: File | undefined) {
+    if (!file) return;
+    setPriceNotice("");
+    const formData = new FormData();
+    formData.set("file", file);
+    try {
+      const response = await adminFetch("/api/admin/products/prices", { method: "POST", body: formData });
+      const payload = await response.json();
+      if (Array.isArray(payload.updates) && payload.source === "seed") {
+        setManagedProducts((current) =>
+          current.map((product) => {
+            const update = payload.updates.find(
+              (item: { sku?: string; slug?: string; name?: string }) =>
+                item.sku?.toLowerCase() === product.sku.toLowerCase() ||
+                item.slug?.toLowerCase() === product.slug.toLowerCase() ||
+                item.name?.toLowerCase() === product.name.en.toLowerCase(),
+            );
+            if (!update) return product;
+            return {
+              ...product,
+              publicPrice: typeof update.publicPrice === "number" ? update.publicPrice : product.publicPrice,
+              restaurantPrice: typeof update.restaurantPrice === "number" ? update.restaurantPrice : product.restaurantPrice,
+            };
+          }),
+        );
+      } else {
+        await loadAdminData();
+      }
+      setPriceNotice(`Price CSV processed. Updated ${payload.updated || 0}${payload.unmatched ? `, unmatched ${payload.unmatched}` : ""}.`);
+    } catch (caught) {
+      setPriceNotice(caught instanceof Error ? caught.message : "Unable to update prices.");
     }
   }
 
@@ -264,7 +384,7 @@ export default function AdminPage() {
             {tab === "products" && (
               <Panel
                 title="Manage products"
-                description="Create products, edit bilingual content, prices, active/featured states and product image URLs or uploads."
+                description={`Showing ${filteredProducts.length} of ${managedProducts.length} products. Search, filter, quick edit prices, then expand only the product you need.`}
                 action={
                   <button type="button" onClick={addProduct} className="ff-button ff-button-primary h-11">
                     <Plus className="h-4 w-4" />
@@ -272,107 +392,126 @@ export default function AdminPage() {
                   </button>
                 }
               >
-                <div className="space-y-4">
-                  {managedProducts.map((product) => (
-                    <div key={product.id} className="border border-[#ddd7cc] bg-white p-4 sm:p-5">
-                      <div className="grid gap-5 xl:grid-cols-[170px_1fr]">
-                        <div className="min-w-0">
-                          <div className="relative aspect-square overflow-hidden bg-[#f7f2e8]">
+                <ProductFilters
+                  categories={managedCategories}
+                  categoryFilter={productCategoryFilter}
+                  catalogFilter={productCatalogFilter}
+                  search={productSearch}
+                  statusFilter={productStatusFilter}
+                  onCategoryFilter={setProductCategoryFilter}
+                  onCatalogFilter={setProductCatalogFilter}
+                  onSearch={setProductSearch}
+                  onStatusFilter={setProductStatusFilter}
+                />
+
+                <div className="mt-5 space-y-3">
+                  {filteredProducts.map((product) => {
+                    const category = categoryLookup.get(product.categorySlug || product.categoryId);
+                    const isExpanded = expandedProductId === product.id;
+                    return (
+                      <div key={product.id} className="border border-[#ddd7cc] bg-white">
+                        <div className="grid gap-3 p-3 md:grid-cols-[72px_minmax(0,1fr)] md:p-4">
+                          <div className="h-[72px] w-[72px] overflow-hidden bg-[#f7f2e8]">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={product.image} alt={product.name.en} className="h-full w-full object-cover" />
                           </div>
-                          <label className="mt-3 inline-flex h-10 w-full cursor-pointer items-center justify-center border border-[#ddd7cc] text-xs font-black text-[#07586b] hover:bg-[#f7f2e8]">
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload image
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              onChange={(event) =>
-                                handleImageFile(event.currentTarget.files?.[0], (image) =>
-                                  updateProduct(product.id, { image, gallery: [image, ...(product.gallery || [])] }),
-                                )
-                              }
-                            />
-                          </label>
-                        </div>
-
-                        <div className="min-w-0 space-y-5">
-                          <div className="flex flex-col justify-between gap-4 border-b border-[#eee7da] pb-4 md:flex-row md:items-start">
-                            <div className="min-w-0">
-                              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{product.sku}</p>
-                              <h3 className="display-serif mt-1 break-words text-2xl font-medium text-slate-950">{product.name.en}</h3>
+                          <div className="min-w-0 space-y-3">
+                            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                              <div className="min-w-0">
+                                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{product.sku}</p>
+                                <h3 className="mt-1 break-words text-base font-black leading-snug text-slate-950">{product.name.en}</h3>
+                                <p className="mt-1 break-words text-xs font-bold text-slate-500">{category?.name.en || product.categoryName?.en || product.categoryId}</p>
+                              </div>
+                              <div className="flex shrink-0 flex-wrap items-center gap-2 xl:justify-end">
+                                <label className="inline-flex h-10 items-center gap-2 border border-[#ddd7cc] px-3 text-xs font-black text-slate-700">
+                                  <input type="checkbox" checked={product.active} onChange={(event) => updateProduct(product.id, { active: event.target.checked })} />
+                                  Active
+                                </label>
+                                <button type="button" onClick={() => saveProduct(product)} className="ff-button ff-button-primary h-10 min-w-0 px-4 text-xs">
+                                  Save
+                                </button>
+                                <button type="button" onClick={() => setExpandedProductId(isExpanded ? null : product.id)} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-4 text-xs">
+                                  {isExpanded ? "Close" : "Edit"}
+                                  <ChevronDown className={`h-4 w-4 transition ${isExpanded ? "rotate-180" : ""}`} />
+                                </button>
+                              </div>
                             </div>
-                            <button type="button" onClick={() => saveProduct(product)} className="ff-button ff-button-primary h-11 min-w-0 px-5">
-                              Save Product
-                            </button>
-                          </div>
-
-                          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                            <ProductField label="English name" value={product.name.en} onChange={(value) => updateProduct(product.id, { name: { ...product.name, en: value } })} />
-                            <ProductField label="Chinese name" value={product.name.zh} onChange={(value) => updateProduct(product.id, { name: { ...product.name, zh: value } })} />
-                            <ProductField label="SKU" value={product.sku} onChange={(value) => updateProduct(product.id, { sku: value })} />
-                            <ProductField label="Slug" value={product.slug} onChange={(value) => updateProduct(product.id, { slug: value })} />
-                            <label className="block">
-                              <span className="admin-label">Category</span>
-                              <select value={product.categoryId} onChange={(event) => updateProduct(product.id, { categoryId: event.target.value })} className="admin-input">
-                                {managedCategories.map((category) => (
-                                  <option key={category.id} value={category.id}>
-                                    {category.name.en}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
-                            <label className="block">
-                              <span className="admin-label">Stock status</span>
-                              <select value={product.stockStatus} onChange={(event) => updateProduct(product.id, { stockStatus: event.target.value as Product["stockStatus"] })} className="admin-input">
-                                {stockStatuses.map((status) => (
-                                  <option key={status}>{status}</option>
-                                ))}
-                              </select>
-                            </label>
-                            <ProductField label="Public price" type="number" value={String(product.publicPrice)} onChange={(value) => updateProduct(product.id, { publicPrice: Number(value) })} />
-                            <ProductField label="Restaurant price" type="number" value={String(product.restaurantPrice)} onChange={(value) => updateProduct(product.id, { restaurantPrice: Number(value) })} />
-                            <ProductField label="Weight" value={product.weight} onChange={(value) => updateProduct(product.id, { weight: value })} />
-                            <ProductField label="Packing EN" value={product.packing.en} onChange={(value) => updateProduct(product.id, { packing: { ...product.packing, en: value } })} />
-                            <ProductField label="Packing 中文" value={product.packing.zh} onChange={(value) => updateProduct(product.id, { packing: { ...product.packing, zh: value } })} />
-                            <ProductField label="MOQ EN" value={product.moq.en} onChange={(value) => updateProduct(product.id, { moq: { ...product.moq, en: value } })} />
-                            <ProductField label="MOQ 中文" value={product.moq.zh} onChange={(value) => updateProduct(product.id, { moq: { ...product.moq, zh: value } })} />
-                            <ProductField label="Image URL" value={product.image} onChange={(value) => updateProduct(product.id, { image: value })} className="md:col-span-2" />
-                          </div>
-
-                          <div className="grid gap-4 md:grid-cols-2">
-                            <ProductField label="Description EN" value={product.description.en} onChange={(value) => updateProduct(product.id, { description: { ...product.description, en: value } })} multiline />
-                            <ProductField label="Description 中文" value={product.description.zh} onChange={(value) => updateProduct(product.id, { description: { ...product.description, zh: value } })} multiline />
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-5 border-t border-[#eee7da] pt-4">
-                            <label className="flex items-center gap-2 text-sm font-black text-slate-700">
-                              <input type="checkbox" checked={product.featured} onChange={(event) => updateProduct(product.id, { featured: event.target.checked })} />
-                              Featured product
-                            </label>
-                            <label className="flex items-center gap-2 text-sm font-black text-slate-700">
-                              <input type="checkbox" checked={product.active} onChange={(event) => updateProduct(product.id, { active: event.target.checked })} />
-                              Active on website
-                            </label>
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(110px,150px)_minmax(120px,170px)_minmax(140px,180px)]">
+                              <ProductQuickPrice label="Public" value={product.publicPrice} onChange={(value) => updateProduct(product.id, { publicPrice: value })} />
+                              <ProductQuickPrice label="Restaurant" value={product.restaurantPrice} onChange={(value) => updateProduct(product.id, { restaurantPrice: value })} />
+                              <label className="block min-w-0 sm:col-span-2 lg:col-span-1">
+                                <span className="admin-label">Stock</span>
+                                <select value={product.stockStatus} onChange={(event) => updateProduct(product.id, { stockStatus: event.target.value as Product["stockStatus"] })} className="admin-input h-10">
+                                  {stockStatuses.map((status) => (
+                                    <option key={status}>{status}</option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
                           </div>
                         </div>
+
+                        {isExpanded && (
+                          <ProductEditor
+                            categories={managedCategories}
+                            product={product}
+                            productCategory={category}
+                            onProductChange={(patch) => updateProduct(product.id, patch)}
+                            onSave={() => saveProduct(product)}
+                          />
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
+                  {filteredProducts.length === 0 && <div className="border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-bold text-slate-500">No products match the current filters.</div>}
                 </div>
               </Panel>
             )}
 
             {tab === "categories" && (
-              <Panel title="Manage categories" description="Edit category names, descriptions, active states and catalog images.">
+              <Panel title="Manage categories" description="Edit category names, groups, descriptions, active states and catalog images.">
                 <div className="grid gap-4 md:grid-cols-2">
                   {managedCategories.map((category) => (
                     <div key={category.id} className="border border-[#ddd7cc] p-4 sm:p-5">
-                      <div className="grid gap-2">
+                      <div className="grid gap-4 sm:grid-cols-[130px_1fr]">
+                        <div className="min-w-0">
+                          <div className="relative aspect-square overflow-hidden bg-[#f7f2e8]">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={category.image} alt={category.name.en} className="h-full w-full object-cover" />
+                          </div>
+                          <label className="mt-3 inline-flex h-10 w-full cursor-pointer items-center justify-center border border-[#ddd7cc] text-xs font-black text-[#07586b] hover:bg-[#f7f2e8]">
+                            <Upload className="mr-2 h-4 w-4" />
+                            Upload photo
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(event) => handleImageFile(event.currentTarget.files?.[0], (image) => updateCategory(category.id, { image }), "categories")}
+                            />
+                          </label>
+                        </div>
+                        <div className="grid gap-2">
                         <input value={category.name.en} onChange={(event) => updateCategory(category.id, { name: { ...category.name, en: event.target.value } })} className="admin-input font-black" />
                         <input value={category.name.zh} onChange={(event) => updateCategory(category.id, { name: { ...category.name, zh: event.target.value } })} className="admin-input" />
+                        <input value={category.slug} onChange={(event) => updateCategory(category.id, { slug: event.target.value })} className="admin-input text-xs" />
+                        <input value={category.group?.en || ""} onChange={(event) => updateCategory(category.id, { group: { en: event.target.value, zh: category.group?.zh || "" } })} className="admin-input" />
+                        <input value={category.group?.zh || ""} onChange={(event) => updateCategory(category.id, { group: { en: category.group?.en || "", zh: event.target.value } })} className="admin-input" />
                         <input value={category.image} onChange={(event) => updateCategory(category.id, { image: event.target.value })} className="admin-input text-xs" />
+                        <textarea
+                          value={(category.classificationKeywords || []).join(", ")}
+                          onChange={(event) =>
+                            updateCategory(category.id, {
+                              classificationKeywords: event.target.value
+                                .split(",")
+                                .map((item) => item.trim())
+                                .filter(Boolean),
+                            })
+                          }
+                          className="admin-input py-3 text-xs"
+                          rows={4}
+                          style={{ height: "auto" }}
+                        />
+                        </div>
                       </div>
                       <label className="mt-4 flex items-center gap-2 text-sm font-black text-slate-700">
                         <input type="checkbox" checked={category.active} onChange={(event) => updateCategory(category.id, { active: event.target.checked })} />
@@ -472,20 +611,61 @@ export default function AdminPage() {
             )}
 
             {tab === "pricing" && (
-              <Panel title="Pricing" description="Public and restaurant pricing side by side.">
-                <div className="grid gap-4">
-                  {managedProducts.map((product) => (
-                    <div key={product.id} className="grid gap-3 border border-[#ddd7cc] p-4 md:grid-cols-[1fr_160px_180px] md:items-center">
-                      <p className="font-bold text-slate-950">{product.name.en}</p>
-                      <p className="text-sm">
-                        Public: <strong>{formatCurrency(product.publicPrice)}</strong>
-                      </p>
-                      <p className="text-sm">
-                        Restaurant: <strong className="text-[#07586b]">{formatCurrency(product.restaurantPrice)}</strong>
-                      </p>
+              <Panel
+                title="Pricing"
+                description={`Quick price editor for ${filteredProducts.length} filtered products. Upload CSV columns: sku, slug or name, plus publicPrice and restaurantPrice.`}
+                action={
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={downloadFilteredPriceCsv} className="ff-button ff-button-outline h-11 bg-white">
+                      <Download className="h-4 w-4" />
+                      Download CSV
+                    </button>
+                    <button type="button" onClick={saveFilteredPrices} className="ff-button ff-button-outline h-11 bg-white">
+                      <Save className="h-4 w-4" />
+                      Save Filtered Prices
+                    </button>
+                    <label className="ff-button ff-button-primary h-11 cursor-pointer">
+                      <Upload className="h-4 w-4" />
+                      Upload CSV
+                      <input type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => uploadPriceCsv(event.target.files?.[0])} />
+                    </label>
+                  </div>
+                }
+              >
+                {priceNotice && <p className="mb-4 border border-[#ddd7cc] bg-[#f7f2e8] p-3 text-sm font-bold text-[#07586b]">{priceNotice}</p>}
+                <ProductFilters
+                  categories={managedCategories}
+                  categoryFilter={productCategoryFilter}
+                  catalogFilter={productCatalogFilter}
+                  search={productSearch}
+                  statusFilter={productStatusFilter}
+                  onCategoryFilter={setProductCategoryFilter}
+                  onCatalogFilter={setProductCatalogFilter}
+                  onSearch={setProductSearch}
+                  onStatusFilter={setProductStatusFilter}
+                />
+                <div className="mt-5 grid gap-3">
+                  {filteredProducts.map((product) => {
+                    const category = categoryLookup.get(product.categorySlug || product.categoryId);
+                    return (
+                      <div key={product.id} className="grid gap-3 border border-[#ddd7cc] bg-white p-4 lg:grid-cols-[minmax(300px,1fr)_minmax(250px,320px)_auto] lg:items-center">
+                        <div className="min-w-0">
+                          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{product.sku}</p>
+                          <p className="mt-1 break-words font-bold leading-snug text-slate-950">{product.name.en}</p>
+                          <p className="mt-1 break-words text-xs font-bold text-slate-500">{category?.name.en || product.categoryName?.en || product.categoryId}</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <ProductQuickPrice label="Public" value={product.publicPrice} onChange={(value) => updateProduct(product.id, { publicPrice: value })} />
+                          <ProductQuickPrice label="Restaurant" value={product.restaurantPrice} onChange={(value) => updateProduct(product.id, { restaurantPrice: value })} />
+                        </div>
+                        <button type="button" onClick={() => saveProduct(product)} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-3 text-xs">
+                          Save Row
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {filteredProducts.length === 0 && <div className="border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-bold text-slate-500">No products match the current filters.</div>}
                     </div>
-                  ))}
-                </div>
               </Panel>
             )}
 
@@ -532,6 +712,175 @@ function Panel({ title, description, children, action }: { title: string; descri
         {action}
       </div>
       {children}
+    </div>
+  );
+}
+
+function ProductFilters({
+  categories,
+  categoryFilter,
+  catalogFilter,
+  onCatalogFilter,
+  onCategoryFilter,
+  onSearch,
+  onStatusFilter,
+  search,
+  statusFilter,
+}: {
+  categories: Category[];
+  categoryFilter: string;
+  catalogFilter: string;
+  onCatalogFilter: (value: string) => void;
+  onCategoryFilter: (value: string) => void;
+  onSearch: (value: string) => void;
+  onStatusFilter: (value: string) => void;
+  search: string;
+  statusFilter: string;
+}) {
+  return (
+    <div className="mt-5 grid gap-3 border border-[#ddd7cc] bg-[#f7f2e8] p-3 md:grid-cols-2 xl:grid-cols-[minmax(260px,1fr)_minmax(180px,240px)_160px_150px]">
+      <label className="flex h-11 min-w-0 items-center border border-[#d9dee2] bg-white">
+        <span className="flex h-full w-11 shrink-0 items-center justify-center text-slate-400">
+          <Search className="h-4 w-4" />
+        </span>
+        <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search products" className="h-full min-w-0 flex-1 border-0 bg-transparent pr-3 text-sm outline-none" />
+      </label>
+      <select value={categoryFilter} onChange={(event) => onCategoryFilter(event.target.value)} className="admin-input h-11">
+        <option value="all">All categories</option>
+        {categories.map((category) => (
+          <option key={category.id} value={category.slug}>
+            {category.group?.en ? `${category.group.en} - ${category.name.en}` : category.name.en}
+          </option>
+        ))}
+      </select>
+      <select value={catalogFilter} onChange={(event) => onCatalogFilter(event.target.value)} className="admin-input h-11">
+        <option value="all">Retail + wholesale</option>
+        <option value="retail">Retail only</option>
+        <option value="wholesale">Wholesale only</option>
+      </select>
+      <select value={statusFilter} onChange={(event) => onStatusFilter(event.target.value)} className="admin-input h-11">
+        <option value="all">All status</option>
+        <option value="active">Active only</option>
+        <option value="inactive">Inactive only</option>
+        {stockStatuses.map((status) => (
+          <option key={status} value={status}>
+            {status}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function ProductQuickPrice({ label, onChange, value }: { label: string; onChange: (value: number) => void; value: number }) {
+  return (
+    <label className="block">
+      <span className="admin-label">{label}</span>
+      <input value={String(value)} onChange={(event) => onChange(Number(event.target.value))} type="number" className="admin-input h-10" />
+    </label>
+  );
+}
+
+function ProductEditor({
+  categories,
+  onProductChange,
+  onSave,
+  product,
+  productCategory,
+}: {
+  categories: Category[];
+  onProductChange: (patch: Partial<Product>) => void;
+  onSave: () => void;
+  product: Product;
+  productCategory?: Category;
+}) {
+  const selectedCategory = productCategory?.slug || product.categorySlug || product.categoryId;
+
+  return (
+    <div className="border-t border-[#eee7da] bg-white p-4 sm:p-5">
+      <div className="grid gap-5 xl:grid-cols-[170px_1fr]">
+        <div className="min-w-0">
+          <div className="relative aspect-square overflow-hidden bg-[#f7f2e8]">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={product.image} alt={product.name.en} className="h-full w-full object-cover" />
+          </div>
+          <label className="mt-3 inline-flex h-10 w-full cursor-pointer items-center justify-center border border-[#ddd7cc] text-xs font-black text-[#07586b] hover:bg-[#f7f2e8]">
+            <Upload className="mr-2 h-4 w-4" />
+            Upload image
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(event) =>
+                handleImageFile(event.currentTarget.files?.[0], (image) =>
+                  onProductChange({ image, gallery: [image, ...(product.gallery || [])] }),
+                )
+              }
+            />
+          </label>
+        </div>
+
+        <div className="min-w-0 space-y-5">
+          <div className="flex flex-col justify-between gap-4 border-b border-[#eee7da] pb-4 md:flex-row md:items-start">
+            <div className="min-w-0">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{product.sku}</p>
+              <h3 className="display-serif mt-1 break-words text-2xl font-medium text-slate-950">{product.name.en}</h3>
+            </div>
+            <button type="button" onClick={onSave} className="ff-button ff-button-primary h-11 min-w-0 px-5">
+              Save Product
+            </button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <ProductField label="English name" value={product.name.en} onChange={(value) => onProductChange({ name: { ...product.name, en: value } })} />
+            <ProductField label="Chinese name" value={product.name.zh} onChange={(value) => onProductChange({ name: { ...product.name, zh: value } })} />
+            <ProductField label="SKU" value={product.sku} onChange={(value) => onProductChange({ sku: value })} />
+            <ProductField label="Slug" value={product.slug} onChange={(value) => onProductChange({ slug: value })} />
+            <label className="block">
+              <span className="admin-label">Category</span>
+              <select value={selectedCategory} onChange={(event) => onProductChange({ categoryId: event.target.value, categorySlug: event.target.value })} className="admin-input">
+                {categories.map((category) => (
+                  <option key={category.id} value={category.slug}>
+                    {category.group?.en ? `${category.group.en} - ${category.name.en}` : category.name.en}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block">
+              <span className="admin-label">Stock status</span>
+              <select value={product.stockStatus} onChange={(event) => onProductChange({ stockStatus: event.target.value as Product["stockStatus"] })} className="admin-input">
+                {stockStatuses.map((status) => (
+                  <option key={status}>{status}</option>
+                ))}
+              </select>
+            </label>
+            <ProductField label="Public price" type="number" value={String(product.publicPrice)} onChange={(value) => onProductChange({ publicPrice: Number(value) })} />
+            <ProductField label="Restaurant price" type="number" value={String(product.restaurantPrice)} onChange={(value) => onProductChange({ restaurantPrice: Number(value) })} />
+            <ProductField label="Weight" value={product.weight} onChange={(value) => onProductChange({ weight: value })} />
+            <ProductField label="Packing EN" value={product.packing.en} onChange={(value) => onProductChange({ packing: { ...product.packing, en: value } })} />
+            <ProductField label="Packing 中文" value={product.packing.zh} onChange={(value) => onProductChange({ packing: { ...product.packing, zh: value } })} />
+            <ProductField label="MOQ EN" value={product.moq.en} onChange={(value) => onProductChange({ moq: { ...product.moq, en: value } })} />
+            <ProductField label="MOQ 中文" value={product.moq.zh} onChange={(value) => onProductChange({ moq: { ...product.moq, zh: value } })} />
+            <ProductField label="Image URL" value={product.image} onChange={(value) => onProductChange({ image: value })} className="md:col-span-2" />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <ProductField label="Description EN" value={product.description.en} onChange={(value) => onProductChange({ description: { ...product.description, en: value } })} multiline />
+            <ProductField label="Description 中文" value={product.description.zh} onChange={(value) => onProductChange({ description: { ...product.description, zh: value } })} multiline />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-5 border-t border-[#eee7da] pt-4">
+            <label className="flex items-center gap-2 text-sm font-black text-slate-700">
+              <input type="checkbox" checked={product.featured} onChange={(event) => onProductChange({ featured: event.target.checked })} />
+              Featured product
+            </label>
+            <label className="flex items-center gap-2 text-sm font-black text-slate-700">
+              <input type="checkbox" checked={product.active} onChange={(event) => onProductChange({ active: event.target.checked })} />
+              Active on website
+            </label>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -669,6 +1018,12 @@ function saveStore<T>(key: string, value: T) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
+function csvCell(value: string | number | boolean | null | undefined) {
+  const text = String(value ?? "");
+  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+  return text;
+}
+
 function adminFetch(input: string, init: RequestInit = {}) {
   const session = JSON.parse(window.localStorage.getItem("famfood-session") || "{}") as { token?: string };
   const headers = new Headers(init.headers);
@@ -684,10 +1039,11 @@ function adminFetch(input: string, init: RequestInit = {}) {
   });
 }
 
-async function handleImageFile(file: File | undefined, onImage: (image: string) => void) {
+async function handleImageFile(file: File | undefined, onImage: (image: string) => void, folder: "products" | "categories" = "products") {
   if (!file) return;
   const formData = new FormData();
   formData.set("file", file);
+  formData.set("folder", folder);
   try {
     const response = await adminFetch("/api/admin/upload", { method: "POST", body: formData });
     const payload = await response.json();

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { products, restaurantCustomers } from "@/data/catalog";
 import { customerFromRow, orderFromRow, productFromRow } from "@/lib/db-mappers";
+import { hasPdfCatalogProducts } from "@/lib/catalog-source";
 import { assertRole } from "@/lib/supabase";
 
 export async function GET(request: Request) {
@@ -25,17 +26,20 @@ export async function GET(request: Request) {
   if (!customerRow) return NextResponse.json({ error: "Restaurant customer profile not found." }, { status: 404 });
 
   const [{ data: productRows, error: productsError }, { data: orderRows, error: ordersError }] = await Promise.all([
-    client.from("products").select("*, categories(name_en, name_zh)").eq("active", true).order("created_at", { ascending: false }),
+    client.from("products").select("*, categories(slug, name_en, name_zh)").eq("active", true).order("created_at", { ascending: false }),
     client.from("orders").select("*, order_items(*)").eq("restaurant_customer_id", customerRow.id).order("created_at", { ascending: false }),
   ]);
 
   if (productsError) return NextResponse.json({ error: productsError.message }, { status: 500 });
   if (ordersError) return NextResponse.json({ error: ordersError.message }, { status: 500 });
 
+  const catalog = (productRows || []).map(productFromRow);
+  const hasCurrentCatalog = hasPdfCatalogProducts(catalog);
+
   return NextResponse.json({
     customer: customerFromRow(customerRow),
-    products: (productRows || []).map(productFromRow),
+    products: hasCurrentCatalog ? catalog : products.filter((product) => product.active),
     orders: (orderRows || []).map(orderFromRow),
-    source: "supabase",
+    source: hasCurrentCatalog ? "supabase" : "seed-stale-supabase",
   });
 }

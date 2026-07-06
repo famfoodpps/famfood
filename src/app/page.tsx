@@ -29,8 +29,8 @@ export default function Home() {
           <Reveal delay={0.1}>
             <p className="text-lg leading-9 text-slate-600">
               {locale === "zh"
-                ? "FAMFOOD Product Enterprise 为餐厅、零售商、咖啡馆与家庭客户供应海鲜、冷冻食品、日式产品及饮品，重点是稳定、方便与专业服务。"
-                : "FAMFOOD Product Enterprise supplies seafood, frozen food, Japanese products and drinks to restaurants, retailers, cafes and home customers with a focus on stable access, convenience and professional service."}
+                ? "FAMFOOD Enterprise 为餐厅、零售商、咖啡馆与家庭客户供应海鲜、果汁、冷冻食品、烹饪干货与即食食材，重点是稳定、方便与专业服务。"
+                : "FAMFOOD Enterprise supplies seafood, juice, frozen food, cooking essentials and ready food to restaurants, retailers, cafes and home customers with a focus on stable access, convenience and professional service."}
             </p>
             <div className="mt-9 grid gap-6 sm:grid-cols-2">
               <InfoBlock title={locale === "zh" ? "餐饮供应" : "Restaurant Supply"} text={locale === "zh" ? "餐厅价格、快速下单与订单记录。" : "Restaurant pricing, quick ordering and order history for repeat buyers."} icon={<Building2 className="h-7 w-7" />} />
@@ -46,7 +46,7 @@ export default function Home() {
         <div className="section-shell">
           <Reveal className="grid gap-5 md:grid-cols-[1fr_auto] md:items-end">
             <div>
-              <p className="ff-eyebrow">Product Categories</p>
+              <p className="ff-eyebrow">Shop by Category</p>
               <h2 className="ff-title mt-4">Product Center</h2>
             </div>
             <Link href="/products" className="ff-button ff-button-outline">
@@ -55,18 +55,18 @@ export default function Home() {
             </Link>
           </Reveal>
 
-          <div className="mt-12 grid gap-7 md:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-3 md:gap-6 lg:grid-cols-4">
             {categories.map((category, index) => (
               <Reveal key={category.id} delay={index * 0.04}>
-                <Link href={`/products?category=${category.id}`} className="group block overflow-hidden border border-[#ddd7cc] bg-white">
-                  <div className="relative aspect-[1.35] overflow-hidden">
-                    <Image src={category.image} alt={pick(category.name)} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition duration-700 group-hover:scale-105" />
+                <Link href={`/products?category=${category.slug}`} className="group block overflow-hidden border border-[#ddd7cc] bg-white">
+                  <div className="relative aspect-[1.08] overflow-hidden">
+                    <Image src={category.image} alt={pick(category.name)} fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" className="object-cover transition duration-700 group-hover:scale-105" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
-                    <h3 className="display-serif absolute bottom-6 left-6 right-6 text-[clamp(1.45rem,2.2vw,2rem)] font-medium leading-[1.08] text-white">
+                    <h3 className="display-serif absolute bottom-4 left-4 right-4 text-[clamp(1.1rem,1.8vw,1.45rem)] font-medium leading-tight text-white">
                       {pick(category.name)}
                     </h3>
                   </div>
-                  <p className="min-h-24 p-6 text-sm leading-7 text-slate-600">{pick(category.description)}</p>
+                  <p className="min-h-12 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#07586b]">{pick(category.group)}</p>
                 </Link>
               </Reveal>
             ))}
@@ -96,7 +96,7 @@ export default function Home() {
       </section>
 
       <section className="ff-dark-panel relative overflow-hidden py-20 md:py-28">
-        <Image src="/sample-assets/seafood-dish.webp" alt="Seafood supplier" fill sizes="100vw" className="object-cover opacity-[0.16]" />
+        <Image src="/sample-assets/seafood2.jpg" alt="Seafood supplier" fill sizes="100vw" className="object-cover opacity-[0.16]" />
         <div className="section-shell relative grid gap-10 lg:grid-cols-[1fr_1fr] lg:items-center">
           <Reveal>
             <p className="ff-eyebrow text-[#d8aa45]">Built for Food Businesses</p>

@@ -6,7 +6,7 @@ import { MessageCircle, ShoppingCart } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { formatCurrency, getCategoryName, products } from "@/data/catalog";
+import { formatCurrency, getCategoryName, getProductCategorySlug, products } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
 import { useLanguage } from "@/hooks/useLanguage";
 import { productWhatsAppUrl } from "@/lib/whatsapp";
@@ -34,8 +34,10 @@ export default function ProductDetailPage() {
   const product = catalog.find((item) => item.slug === params.slug);
   if (!product) notFound();
 
-  const related = catalog.filter((item) => item.categoryId === product.categoryId && item.id !== product.id && item.active).slice(0, 3);
-  const categoryName = product.categoryName ? pick(product.categoryName) : getCategoryName(product.categoryId, locale);
+  const productCategorySlug = getProductCategorySlug(product);
+  const related = catalog.filter((item) => getProductCategorySlug(item) === productCategorySlug && item.id !== product.id && item.active).slice(0, 3);
+  const categoryName = getCategoryName(productCategorySlug, locale);
+  const hasPublicPrice = product.publicPrice > 0;
 
   return (
     <div className="bg-white pt-[110px]">
@@ -58,19 +60,19 @@ export default function ProductDetailPage() {
               <div className="grid gap-4 sm:grid-cols-3 sm:items-center">
                 <div>
                   <p className="text-xs font-black uppercase text-slate-400">Public price</p>
-                  <p className="text-3xl font-black text-[#07586b]">{formatCurrency(product.publicPrice)}</p>
+                  <p className="text-3xl font-black text-[#07586b]">{hasPublicPrice ? formatCurrency(product.publicPrice) : "Ask price"}</p>
                 </div>
                 <div>
                   <p className="text-xs font-black uppercase text-slate-400">Restaurant price</p>
-                  <p className="text-3xl font-black text-[#182126]">{formatCurrency(product.restaurantPrice)}</p>
+                  <p className="text-3xl font-black text-[#182126]">{product.restaurantPrice > 0 ? formatCurrency(product.restaurantPrice) : "Ask price"}</p>
                 </div>
                 <StatusBadge value={product.stockStatus} />
               </div>
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <button type="button" onClick={() => cart.add(product.id)} className="ff-button ff-button-primary">
+              <button type="button" disabled={!hasPublicPrice} onClick={() => cart.add(product.id)} className="ff-button ff-button-primary disabled:cursor-not-allowed disabled:bg-slate-300">
                 <ShoppingCart className="h-4 w-4" />
-                Add to Cart
+                {hasPublicPrice ? "Add to Cart" : "Ask on WhatsApp"}
               </button>
               <a href={productWhatsAppUrl(product, locale)} target="_blank" rel="noreferrer" className="ff-button ff-button-outline">
                 <MessageCircle className="h-4 w-4" />

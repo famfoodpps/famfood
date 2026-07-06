@@ -1,5 +1,5 @@
 export function RollingText() {
-  const phrase = "FAMFOOD · SEAFOOD SUPPLY · RESTAURANT CATALOG · FROZEN FOOD · ";
+  const phrase = "FAMFOOD · SEAFOOD SUPPLY · JUICE RETAIL · RESTAURANT CATALOG · FROZEN FOOD · ";
   const text = Array.from({ length: 12 }, (_, index) => <span key={index}>{phrase}</span>);
 
   return (
