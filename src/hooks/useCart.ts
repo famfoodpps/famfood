@@ -72,7 +72,7 @@ export function useCart(mode: CartMode = "public") {
       .map((item) => {
         const product = catalog.find((candidate) => candidate.id === item.productId && candidate.active);
         if (!product) return null;
-        const unitPrice = mode === "restaurant" ? product.restaurantPrice : product.publicPrice;
+        const unitPrice = mode === "restaurant" ? product.restaurantPrice || product.publicPrice : product.publicPrice;
         return { ...item, product, unitPrice, lineTotal: unitPrice * item.quantity };
       })
       .filter(Boolean) as CartLine[];

@@ -3,12 +3,13 @@
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { History, LayoutDashboard, LogOut, Plus, ShoppingCart, UserRound } from "lucide-react";
+import { Check, History, KeyRound, LayoutDashboard, LogOut, Plus, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { demoOrders, formatCurrency, products as seedProducts, restaurantCustomers } from "@/data/catalog";
+import { demoOrders, formatCurrency, getProductCategorySlug, products as seedProducts, restaurantCustomers } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
 import { useLanguage } from "@/hooks/useLanguage";
+import { createBrowserSupabase } from "@/lib/supabase";
 import type { Order, Product, RestaurantCustomer } from "@/types/catalog";
 
 type PortalTab = "dashboard" | "products" | "quick" | "cart" | "history" | "account";
@@ -28,9 +29,18 @@ export default function RestaurantPortalPage() {
   const { pick } = useLanguage();
   const [tab, setTab] = useState<PortalTab>("dashboard");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [quickSearch, setQuickSearch] = useState("");
+  const [quickCategory, setQuickCategory] = useState("all");
+  const [quickStock, setQuickStock] = useState("available");
+  const [quickAddedId, setQuickAddedId] = useState("");
+  const [quickNotice, setQuickNotice] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
   const [productList, setProductList] = useState<Product[]>(seedProducts);
   const [customer, setCustomer] = useState<RestaurantCustomer>(restaurantCustomers[0]);
+  const [passwordForm, setPasswordForm] = useState({ password: "", confirm: "" });
+  const [passwordNotice, setPasswordNotice] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -51,6 +61,32 @@ export default function RestaurantPortalPage() {
   }, [router]);
 
   const recentOrders = orders.filter((order) => order.channel === "Restaurant").slice(0, 5);
+  const activeProducts = useMemo(() => productList.filter((product) => product.active), [productList]);
+  const categoryOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    activeProducts.forEach((product) => {
+      const slug = getProductCategorySlug(product);
+      map.set(slug, product.categoryName?.en || slug.replace(/-/g, " "));
+    });
+    return Array.from(map.entries()).map(([slug, label]) => ({ slug, label }));
+  }, [activeProducts]);
+  const quickProducts = useMemo(() => {
+    const search = quickSearch.trim().toLowerCase();
+    return activeProducts.filter((product) => {
+      const categorySlug = getProductCategorySlug(product);
+      const effectivePrice = product.restaurantPrice || product.publicPrice;
+      const matchesSearch = !search || `${product.sku} ${product.name.en} ${product.name.zh}`.toLowerCase().includes(search);
+      const matchesCategory = quickCategory === "all" || categorySlug === quickCategory || product.categorySlug === quickCategory || product.categoryId === quickCategory;
+      const matchesStock = quickStock === "all" || (quickStock === "available" ? product.stockStatus !== "Out of Stock" && effectivePrice > 0 : product.stockStatus === quickStock);
+      return matchesSearch && matchesCategory && matchesStock;
+    });
+  }, [activeProducts, quickCategory, quickSearch, quickStock]);
+
+  useEffect(() => {
+    if (!quickAddedId) return;
+    const timeout = window.setTimeout(() => setQuickAddedId(""), 1200);
+    return () => window.clearTimeout(timeout);
+  }, [quickAddedId]);
 
   async function submitRestaurantOrder() {
     if (cart.lines.length === 0) return;
@@ -100,8 +136,43 @@ export default function RestaurantPortalPage() {
 
   function addQuickOrder(productId: string) {
     const quantity = Math.max(1, quantities[productId] ?? 1);
+    const product = productList.find((item) => item.id === productId);
     cart.add(productId, quantity);
     setQuantities((current) => ({ ...current, [productId]: 1 }));
+    setQuickAddedId(productId);
+    setQuickNotice(product ? `Added ${quantity} x ${pick(product.name)} to cart.` : "Added to cart.");
+  }
+
+  async function changePassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setPasswordNotice("");
+    setPasswordError("");
+    if (passwordForm.password.length < 6) {
+      setPasswordError("Password must be at least 6 characters.");
+      return;
+    }
+    if (passwordForm.password !== passwordForm.confirm) {
+      setPasswordError("Passwords do not match.");
+      return;
+    }
+
+    const supabase = createBrowserSupabase();
+    if (!supabase) {
+      setPasswordError("Password changes are available after Supabase login is configured.");
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: passwordForm.password });
+      if (error) throw error;
+      setPasswordForm({ password: "", confirm: "" });
+      setPasswordNotice("Password updated.");
+    } catch (caught) {
+      setPasswordError(caught instanceof Error ? caught.message : "Unable to update password.");
+    } finally {
+      setPasswordSaving(false);
+    }
   }
 
   return (
@@ -157,7 +228,7 @@ export default function RestaurantPortalPage() {
 
             {tab === "products" && (
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {productList.filter((product) => product.active).map((product) => (
+                {activeProducts.map((product) => (
                   <ProductCard key={product.id} product={product} mode="restaurant" />
                 ))}
               </div>
@@ -165,31 +236,68 @@ export default function RestaurantPortalPage() {
 
             {tab === "quick" && (
               <div className="portal-panel ff-card">
-                <h2 className="display-serif text-2xl font-medium sm:text-3xl">Quick Order</h2>
-                <div className="mt-6 divide-y divide-[#eee7da]">
-                  {productList.filter((product) => product.active).map((product) => (
-                    <div key={product.id} className="grid grid-cols-[72px_1fr] gap-3 py-4 sm:grid-cols-[80px_1fr] md:grid-cols-[80px_1fr_120px_120px] md:items-center">
-                      <div className="relative h-[72px] overflow-hidden bg-[#f7f2e8] sm:h-20 md:h-16">
+                <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                  <div>
+                    <h2 className="display-serif text-2xl font-medium sm:text-3xl">Quick Order</h2>
+                    <p className="mt-2 text-sm font-semibold text-slate-500">Showing {quickProducts.length} of {activeProducts.length} products.</p>
+                  </div>
+                  {quickNotice && <p className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">{quickNotice}</p>}
+                </div>
+                <div className="mt-5 grid gap-3 bg-[#f7f2e8] p-3 lg:grid-cols-[minmax(220px,1fr)_180px_150px]">
+                  <label className="flex h-11 min-w-0 items-center border border-[#ddd7cc] bg-white px-3">
+                    <Search className="mr-2 h-4 w-4 shrink-0 text-slate-400" />
+                    <input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Search products" className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none" />
+                  </label>
+                  <select value={quickCategory} onChange={(event) => setQuickCategory(event.target.value)} className="admin-input h-11">
+                    <option value="all">All categories</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category.slug} value={category.slug}>{category.label}</option>
+                    ))}
+                  </select>
+                  <select value={quickStock} onChange={(event) => setQuickStock(event.target.value)} className="admin-input h-11">
+                    <option value="available">Available</option>
+                    <option value="all">All status</option>
+                    <option value="In Stock">In Stock</option>
+                    <option value="Limited">Limited</option>
+                    <option value="Pre-order">Pre-order</option>
+                    <option value="Out of Stock">Out of Stock</option>
+                  </select>
+                </div>
+                <div className="mt-6 space-y-3">
+                  {quickProducts.map((product) => {
+                    const effectivePrice = product.restaurantPrice || product.publicPrice;
+                    const canAdd = product.stockStatus !== "Out of Stock" && effectivePrice > 0;
+                    const added = quickAddedId === product.id;
+                    return (
+                    <div key={product.id} className="grid gap-3 border border-[#ddd7cc] bg-white p-3 lg:grid-cols-[72px_minmax(0,1fr)_120px_112px_112px] lg:items-center">
+                      <div className="relative h-[72px] overflow-hidden bg-[#f7f2e8]">
                         <Image src={product.image} alt={pick(product.name)} fill sizes="80px" className="object-cover" />
                       </div>
                       <div className="min-w-0">
                         <p className="break-words font-bold text-slate-950">{pick(product.name)}</p>
-                        <p className="text-sm text-slate-500">
-                          {formatCurrency(product.restaurantPrice)} · {pick(product.moq)}
+                        <p className="mt-1 text-sm text-slate-500">
+                          {product.sku} · {pick(product.moq)}
                         </p>
+                        {product.restaurantPrice <= 0 && product.publicPrice > 0 && <p className="mt-1 text-xs font-black uppercase text-[#c22931]">Using retail price until restaurant price is set</p>}
+                      </div>
+                      <div className="text-sm font-black text-[#07586b]">
+                        {effectivePrice > 0 ? formatCurrency(effectivePrice) : "Ask price"}
                       </div>
                       <input
                         type="number"
                         min={1}
                         value={quantities[product.id] ?? 1}
                         onChange={(event) => setQuantities((current) => ({ ...current, [product.id]: Number(event.target.value) }))}
-                        className="admin-input col-span-2 md:col-span-1"
+                        className="admin-input h-11"
                       />
-                      <button type="button" onClick={() => addQuickOrder(product.id)} className="ff-button ff-button-primary col-span-2 h-11 min-w-0 md:col-span-1">
-                        Add
+                      <button type="button" onClick={() => addQuickOrder(product.id)} disabled={!canAdd} className={`ff-button h-11 min-w-0 px-3 disabled:bg-slate-300 ${added ? "bg-emerald-600 text-white hover:bg-emerald-700" : "ff-button-primary"}`}>
+                        {added ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                        {added ? "Added" : "Add"}
                       </button>
                     </div>
-                  ))}
+                    );
+                  })}
+                  {quickProducts.length === 0 && <p className="border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-bold text-slate-500">No products match the current filters.</p>}
                 </div>
               </div>
             )}
@@ -199,12 +307,15 @@ export default function RestaurantPortalPage() {
                 <h2 className="display-serif text-2xl font-medium sm:text-3xl">Submit Order</h2>
                 <div className="mt-5 space-y-3">
                   {cart.lines.map((line) => (
-                    <div key={line.productId} className="flex flex-col justify-between gap-3 border border-[#ddd7cc] p-4 sm:flex-row sm:items-center">
+                    <div key={line.productId} className="grid gap-3 border border-[#ddd7cc] p-4 sm:grid-cols-[1fr_auto_auto] sm:items-center">
                       <div className="min-w-0">
                         <p className="break-words font-bold">{pick(line.product.name)}</p>
                         <p className="text-sm text-slate-500">Qty {line.quantity}</p>
                       </div>
                       <p className="font-black text-[#07586b]">{formatCurrency(line.lineTotal)}</p>
+                      <button type="button" onClick={() => cart.remove(line.productId)} className="inline-flex h-10 w-10 items-center justify-center border border-red-100 text-red-600 hover:bg-red-50" aria-label={`Remove ${pick(line.product.name)} from cart`}>
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   ))}
                   {cart.lines.length === 0 && <p className="border border-dashed border-slate-300 p-8 text-center text-slate-500">No restaurant cart items yet.</p>}
@@ -236,6 +347,27 @@ export default function RestaurantPortalPage() {
                     </div>
                   ))}
                 </div>
+                <form onSubmit={changePassword} className="mt-8 border-t border-[#eee7da] pt-6">
+                  <div className="flex items-center gap-3">
+                    <KeyRound className="h-5 w-5 text-[#07586b]" />
+                    <h3 className="text-lg font-black text-slate-950">Change Password</h3>
+                  </div>
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="admin-label">New password</span>
+                      <input type="password" value={passwordForm.password} onChange={(event) => setPasswordForm((current) => ({ ...current, password: event.target.value }))} className="admin-input" />
+                    </label>
+                    <label className="block">
+                      <span className="admin-label">Confirm password</span>
+                      <input type="password" value={passwordForm.confirm} onChange={(event) => setPasswordForm((current) => ({ ...current, confirm: event.target.value }))} className="admin-input" />
+                    </label>
+                  </div>
+                  {passwordError && <p className="mt-4 bg-red-50 p-3 text-sm font-bold text-red-700">{passwordError}</p>}
+                  {passwordNotice && <p className="mt-4 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">{passwordNotice}</p>}
+                  <button type="submit" disabled={passwordSaving} className="ff-button ff-button-primary mt-5 h-11 min-w-0 disabled:bg-slate-300">
+                    {passwordSaving ? "Saving..." : "Update Password"}
+                  </button>
+                </form>
               </div>
             )}
           </section>

@@ -18,7 +18,7 @@ type ProductCardProps = {
 export function ProductCard({ product, mode = "public" }: ProductCardProps) {
   const cart = useCart(mode);
   const { locale, pick } = useLanguage();
-  const price = mode === "restaurant" ? product.restaurantPrice : product.publicPrice;
+  const price = mode === "restaurant" ? product.restaurantPrice || product.publicPrice : product.publicPrice;
   const categoryName = getCategoryName(getProductCategorySlug(product), locale);
   const hasPrice = price > 0;
   const [added, setAdded] = useState(false);

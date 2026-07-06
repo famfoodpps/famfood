@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     .map((item) => {
       const product = catalog.find((candidate) => candidate.id === item.productId);
       if (!product) return null;
-      const unitPrice = channel === "Restaurant" ? product.restaurantPrice : product.publicPrice;
+      const unitPrice = channel === "Restaurant" ? product.restaurantPrice || product.publicPrice : product.publicPrice;
       return {
         product,
         quantity: Math.max(1, Number(item.quantity) || 1),
