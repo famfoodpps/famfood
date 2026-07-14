@@ -385,7 +385,11 @@ a {
 }
 
 .hero-word {
-  display: inline-block;
+  display: block;
+}
+
+.proposal-capture-subtitle > span {
+  display: inline;
 }
 
 .hero-word-group {
@@ -643,7 +647,54 @@ a {
   padding-top: 12px;
 }
 
+.quick-order-add-button {
+  align-items: center;
+  background: var(--ff-teal);
+  border: 1px solid var(--ff-teal);
+  color: #fff;
+  display: inline-flex;
+  font-size: 13px;
+  font-weight: 900;
+  gap: 6px;
+  height: 44px;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 12px;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  width: 100%;
+}
+
+.quick-order-add-button:hover {
+  background: var(--ff-teal-dark);
+  border-color: var(--ff-teal-dark);
+}
+
+.quick-order-add-button.is-added {
+  background: #059669;
+  border-color: #059669;
+}
+
+.quick-order-add-button:disabled {
+  border-color: #cbd5e1;
+  cursor: not-allowed;
+}
+
 @media (max-width: 720px) {
+  .proposal-capture .hero-word,
+  .proposal-capture .hero-actions {
+    width: calc(100% - 24px);
+  }
+
+  .proposal-capture .hero-word {
+    font-size: 15px;
+    line-height: 1.75;
+    max-width: none !important;
+  }
+
+  .proposal-capture-subtitle > span {
+    display: block;
+  }
+
   .ff-button {
     min-width: 0;
     width: 100%;

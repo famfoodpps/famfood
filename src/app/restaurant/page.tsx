@@ -29,6 +29,9 @@ export default function RestaurantPortalPage() {
   const { pick } = useLanguage();
   const [tab, setTab] = useState<PortalTab>("dashboard");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [productSearch, setProductSearch] = useState("");
+  const [productCategory, setProductCategory] = useState("all");
+  const [productStock, setProductStock] = useState("available");
   const [quickSearch, setQuickSearch] = useState("");
   const [quickCategory, setQuickCategory] = useState("all");
   const [quickStock, setQuickStock] = useState("available");
@@ -70,16 +73,9 @@ export default function RestaurantPortalPage() {
     });
     return Array.from(map.entries()).map(([slug, label]) => ({ slug, label }));
   }, [activeProducts]);
+  const filteredProducts = useMemo(() => filterRestaurantProducts(activeProducts, productSearch, productCategory, productStock), [activeProducts, productCategory, productSearch, productStock]);
   const quickProducts = useMemo(() => {
-    const search = quickSearch.trim().toLowerCase();
-    return activeProducts.filter((product) => {
-      const categorySlug = getProductCategorySlug(product);
-      const effectivePrice = product.restaurantPrice || product.publicPrice;
-      const matchesSearch = !search || `${product.sku} ${product.name.en} ${product.name.zh}`.toLowerCase().includes(search);
-      const matchesCategory = quickCategory === "all" || categorySlug === quickCategory || product.categorySlug === quickCategory || product.categoryId === quickCategory;
-      const matchesStock = quickStock === "all" || (quickStock === "available" ? product.stockStatus !== "Out of Stock" && effectivePrice > 0 : product.stockStatus === quickStock);
-      return matchesSearch && matchesCategory && matchesStock;
-    });
+    return filterRestaurantProducts(activeProducts, quickSearch, quickCategory, quickStock);
   }, [activeProducts, quickCategory, quickSearch, quickStock]);
 
   useEffect(() => {
@@ -227,10 +223,28 @@ export default function RestaurantPortalPage() {
             )}
 
             {tab === "products" && (
-              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                {activeProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} mode="restaurant" />
-                ))}
+              <div className="portal-panel ff-card">
+                <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+                  <div>
+                    <h2 className="display-serif text-2xl font-medium sm:text-3xl">Product List</h2>
+                    <p className="mt-2 text-sm font-semibold text-slate-500">Showing {filteredProducts.length} of {activeProducts.length} products.</p>
+                  </div>
+                </div>
+                <RestaurantProductFilters
+                  search={productSearch}
+                  category={productCategory}
+                  stock={productStock}
+                  categories={categoryOptions}
+                  onSearch={setProductSearch}
+                  onCategory={setProductCategory}
+                  onStock={setProductStock}
+                />
+                <div className="mt-6 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                  {filteredProducts.map((product) => (
+                    <ProductCard key={product.id} product={product} mode="restaurant" />
+                  ))}
+                </div>
+                {filteredProducts.length === 0 && <p className="mt-6 border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-bold text-slate-500">No products match the current filters.</p>}
               </div>
             )}
 
@@ -243,33 +257,22 @@ export default function RestaurantPortalPage() {
                   </div>
                   {quickNotice && <p className="border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-black text-emerald-700">{quickNotice}</p>}
                 </div>
-                <div className="mt-5 grid gap-3 bg-[#f7f2e8] p-3 lg:grid-cols-[minmax(220px,1fr)_180px_150px]">
-                  <label className="flex h-11 min-w-0 items-center border border-[#ddd7cc] bg-white px-3">
-                    <Search className="mr-2 h-4 w-4 shrink-0 text-slate-400" />
-                    <input value={quickSearch} onChange={(event) => setQuickSearch(event.target.value)} placeholder="Search products" className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none" />
-                  </label>
-                  <select value={quickCategory} onChange={(event) => setQuickCategory(event.target.value)} className="admin-input h-11">
-                    <option value="all">All categories</option>
-                    {categoryOptions.map((category) => (
-                      <option key={category.slug} value={category.slug}>{category.label}</option>
-                    ))}
-                  </select>
-                  <select value={quickStock} onChange={(event) => setQuickStock(event.target.value)} className="admin-input h-11">
-                    <option value="available">Available</option>
-                    <option value="all">All status</option>
-                    <option value="In Stock">In Stock</option>
-                    <option value="Limited">Limited</option>
-                    <option value="Pre-order">Pre-order</option>
-                    <option value="Out of Stock">Out of Stock</option>
-                  </select>
-                </div>
+                <RestaurantProductFilters
+                  search={quickSearch}
+                  category={quickCategory}
+                  stock={quickStock}
+                  categories={categoryOptions}
+                  onSearch={setQuickSearch}
+                  onCategory={setQuickCategory}
+                  onStock={setQuickStock}
+                />
                 <div className="mt-6 space-y-3">
                   {quickProducts.map((product) => {
                     const effectivePrice = product.restaurantPrice || product.publicPrice;
                     const canAdd = product.stockStatus !== "Out of Stock" && effectivePrice > 0;
                     const added = quickAddedId === product.id;
                     return (
-                    <div key={product.id} className="grid gap-3 border border-[#ddd7cc] bg-white p-3 lg:grid-cols-[72px_minmax(0,1fr)_120px_112px_112px] lg:items-center">
+                    <div key={product.id} className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 border border-[#ddd7cc] bg-white p-3 lg:grid-cols-[72px_minmax(0,1fr)_120px_112px_112px] lg:items-center">
                       <div className="relative h-[72px] overflow-hidden bg-[#f7f2e8]">
                         <Image src={product.image} alt={pick(product.name)} fill sizes="80px" className="object-cover" />
                       </div>
@@ -280,7 +283,7 @@ export default function RestaurantPortalPage() {
                         </p>
                         {product.restaurantPrice <= 0 && product.publicPrice > 0 && <p className="mt-1 text-xs font-black uppercase text-[#c22931]">Using retail price until restaurant price is set</p>}
                       </div>
-                      <div className="text-sm font-black text-[#07586b]">
+                      <div className="col-span-2 text-sm font-black text-[#07586b] lg:col-span-1">
                         {effectivePrice > 0 ? formatCurrency(effectivePrice) : "Ask price"}
                       </div>
                       <input
@@ -290,7 +293,7 @@ export default function RestaurantPortalPage() {
                         onChange={(event) => setQuantities((current) => ({ ...current, [product.id]: Number(event.target.value) }))}
                         className="admin-input h-11"
                       />
-                      <button type="button" onClick={() => addQuickOrder(product.id)} disabled={!canAdd} className={`ff-button h-11 min-w-0 px-3 disabled:bg-slate-300 ${added ? "bg-emerald-600 text-white hover:bg-emerald-700" : "ff-button-primary"}`}>
+                      <button type="button" onClick={() => addQuickOrder(product.id)} disabled={!canAdd} className={`quick-order-add-button disabled:bg-slate-300 ${added ? "is-added" : ""}`}>
                         {added ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                         {added ? "Added" : "Add"}
                       </button>
@@ -382,6 +385,61 @@ function Metric({ label, value }: { label: string; value: string }) {
     <div className="ff-card p-6">
       <p className="text-sm font-black uppercase text-slate-400">{label}</p>
       <p className="mt-3 text-3xl font-black text-[#07586b]">{value}</p>
+    </div>
+  );
+}
+
+function filterRestaurantProducts(products: Product[], searchValue: string, categoryValue: string, stockValue: string) {
+  const search = searchValue.trim().toLowerCase();
+  return products.filter((product) => {
+    const categorySlug = getProductCategorySlug(product);
+    const effectivePrice = product.restaurantPrice || product.publicPrice;
+    const matchesSearch = !search || `${product.sku} ${product.name.en} ${product.name.zh}`.toLowerCase().includes(search);
+    const matchesCategory = categoryValue === "all" || categorySlug === categoryValue || product.categorySlug === categoryValue || product.categoryId === categoryValue;
+    const matchesStock = stockValue === "all" || (stockValue === "available" ? product.stockStatus !== "Out of Stock" && effectivePrice > 0 : product.stockStatus === stockValue);
+    return matchesSearch && matchesCategory && matchesStock;
+  });
+}
+
+function RestaurantProductFilters({
+  search,
+  category,
+  stock,
+  categories,
+  onSearch,
+  onCategory,
+  onStock,
+}: {
+  search: string;
+  category: string;
+  stock: string;
+  categories: { slug: string; label: string }[];
+  onSearch: (value: string) => void;
+  onCategory: (value: string) => void;
+  onStock: (value: string) => void;
+}) {
+  return (
+    <div className="mt-5 grid gap-3 bg-[#f7f2e8] p-3 lg:grid-cols-[minmax(220px,1fr)_180px_150px]">
+      <label className="flex h-11 min-w-0 items-center border border-[#ddd7cc] bg-white px-3">
+        <Search className="mr-2 h-4 w-4 shrink-0 text-slate-400" />
+        <input value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search products" className="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none" />
+      </label>
+      <select value={category} onChange={(event) => onCategory(event.target.value)} className="admin-input h-11">
+        <option value="all">All categories</option>
+        {categories.map((item) => (
+          <option key={item.slug} value={item.slug}>
+            {item.label}
+          </option>
+        ))}
+      </select>
+      <select value={stock} onChange={(event) => onStock(event.target.value)} className="admin-input h-11">
+        <option value="available">Available</option>
+        <option value="all">All status</option>
+        <option value="In Stock">In Stock</option>
+        <option value="Limited">Limited</option>
+        <option value="Pre-order">Pre-order</option>
+        <option value="Out of Stock">Out of Stock</option>
+      </select>
     </div>
   );
 }

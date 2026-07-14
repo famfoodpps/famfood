@@ -1,0 +1,203 @@
+﻿sku,slug,name,publicPrice,restaurantPrice,category,stockStatus,active
+SP1,sp1-smoked-salmon,Smoked Salmon,14.9,14,special-promotion-sales,In Stock,TRUE
+SP2,sp2-crab-flavoured-nugget,Crab Flavoured Nugget,9,0,special-promotion-sales,In Stock,TRUE
+SP3,sp3-fish-noodle,Fish Noodle,6.9,6.5,special-promotion-sales,In Stock,TRUE
+SP4,sp4-fish-tofu-with-fish-roe,Fish Tofu With Fish Roe,12.5,0,special-promotion-sales,In Stock,TRUE
+SP5,sp5-boiled-hotate-s,Boiled Hotate (S),22.9,0,special-promotion-sales,In Stock,TRUE
+SP6,sp6-grouper-fillet,Grouper Fillet,35,35,special-promotion-sales,In Stock,TRUE
+SP7,sp7-patin-slice,Patin Slice,12.5,0,special-promotion-sales,In Stock,TRUE
+SP8,sp8-salmon-portion,Salmon Portion,75,65,special-promotion-sales,In Stock,TRUE
+SP9,sp9-teriyaki-unagi,Teriyaki Unagi,16.9,0,special-promotion-sales,In Stock,TRUE
+SP10,sp10-original-unagi,Original Unagi,29.9,0,special-promotion-sales,In Stock,TRUE
+SP11,sp11-sweet-potato-fries,Sweet Potato Fries,15.5,0,special-promotion-sales,In Stock,TRUE
+SP12,sp12-smoked-duck-breast,Smoked Duck Breast,4.9,0,special-promotion-sales,In Stock,TRUE
+SP13,sp13-raspberries,Raspberries,15.9,0,special-promotion-sales,In Stock,TRUE
+SP14,sp14-chicken-cocktail,Chicken Cocktail,15.5,0,special-promotion-sales,In Stock,TRUE
+SP15,sp15-abalone-slice,Abalone Slice,7.9,0,special-promotion-sales,In Stock,TRUE
+SP16,sp16-crispy-chicken-wonton,Crispy Chicken Wonton,9.9,0,special-promotion-sales,In Stock,TRUE
+SP17,sp17-abalone,Abalone,35.9,35,special-promotion-sales,In Stock,TRUE
+SP18,sp18-cooked-vn-prawn,Cooked VN Prawn,33.9,33,special-promotion-sales,In Stock,TRUE
+SP19,sp19-takoyaki-ball,Takoyaki Ball,24.9,24,special-promotion-sales,In Stock,TRUE
+SP20,sp20-tiger-shrimps-paste,Tiger Shrimps Paste,11.9,11.5,special-promotion-sales,In Stock,TRUE
+SP21,sp21-baby-octopus,Baby Octopus,12.5,12.5,special-promotion-sales,In Stock,TRUE
+SP22,sp22-soft-shell-crab,Soft Shell Crab,40,0,special-promotion-sales,In Stock,TRUE
+SP23,sp23-tentacle,Tentacle,17.9,0,special-promotion-sales,In Stock,TRUE
+SP24,sp24-vegetarian-sharkfin,Vegetarian Sharkfin,15.9,13.1,special-promotion-sales,In Stock,TRUE
+A1,a1-red-fish-fillet,Red Fish Fillet,38,33,fish-fillet,In Stock,TRUE
+A2,a2-dory-fillet,Dory Fillet,13,11,fish-fillet,In Stock,TRUE
+A3,a3-halibut-fillet,Halibut Fillet,68,60,fish-fillet,In Stock,TRUE
+A4,a4-butterfish-fillet,Butterfish Fillet,33,0,fish-fillet,In Stock,TRUE
+A5,a5-tofu-fish-fillet,Tofu Fish Fillet,98,0,fish-fillet,In Stock,TRUE
+A6,a6-seabass-fillet,Seabass Fillet,40,35,fish-fillet,In Stock,TRUE
+A7,a7-fish-sliced,Fish Sliced,24.9,18,fish-fillet,In Stock,TRUE
+A8,a8-salmon-fillet,Salmon Fillet,75,65,fish-fillet,In Stock,TRUE
+A9,a9-tilapia-fillet,Tilapia Fillet,23,20,fish-fillet,In Stock,TRUE
+A10,a10-toman-slice,Toman Slice,16.9,15,fish-fillet,In Stock,TRUE
+A11,a11-pollock-fillet,Pollock Fillet,21.9,18,fish-fillet,In Stock,TRUE
+A12,a12-chilean-cod-fish-steak,Chilean Cod Fish Steak,218,0,fish-fillet,In Stock,TRUE
+B1,b1-golden-pomfret,Golden Pomfret,7.9,0,whole-fish,In Stock,TRUE
+B2,b2-golden-pomfret,Golden Pomfret,24,0,whole-fish,In Stock,TRUE
+B3,b3-golden-pomfret,Golden Pomfret,27.5,0,whole-fish,In Stock,TRUE
+B4,b4-whole-fresh-salmon,Whole Fresh Salmon,88,0,whole-fish,In Stock,TRUE
+B5,b5-whole-frozen-salmon,Whole Frozen Salmon,48,0,whole-fish,In Stock,TRUE
+B6,b6-kembong,Kembong,10.9,9.5,whole-fish,In Stock,TRUE
+B7,b7-gonjeng,Gonjeng,12.5,11,whole-fish,In Stock,TRUE
+B8,b8-seabass,Seabass,17.5,0,whole-fish,In Stock,TRUE
+B9,b9-red-tilapia,Red Tilapia,15,0,whole-fish,In Stock,TRUE
+B10,b10-red-tilapia,Red Tilapia,15,0,whole-fish,In Stock,TRUE
+B11,b11-black-pomfret,Black Pomfret,22,0,whole-fish,In Stock,TRUE
+B12,b12-chilean-cod-fish,Chilean Cod Fish,180,175,whole-fish,In Stock,TRUE
+C1,c1-japan-sashimi-oyster,Japan Sashimi Oyster,6.5,0,shell,In Stock,TRUE
+C2,c2-rushan-oyster,Rushan Oyster,7.9,0,shell,In Stock,TRUE
+C3,c3-half-shell-oyster,Half Shell Oyster,2.4,2.2,shell,In Stock,TRUE
+C4,c4-jade-green-whelk,Jade Green Whelk,29.9,0,shell,In Stock,TRUE
+C5,c5-asari-clam-b,Asari Clam (B),8.9,0,shell,In Stock,TRUE
+C6,c6-asari-clam-s,Asari Clam (S),7.9,0,shell,In Stock,TRUE
+C7,c7-pink-scallop,Pink Scallop,19.9,0,shell,In Stock,TRUE
+C8,c8-golden-shell-scallop,Golden Shell Scallop,19.9,0,shell,In Stock,TRUE
+C9,c9-white-clam,White Clam,17.9,15,shell,In Stock,TRUE
+C10,c10-oyster-meat,Oyster Meat,19.9,19,shell,In Stock,TRUE
+C11,c11-nz-greenshell-mussel,NZ Greenshell Mussel,48.9,0,shell,In Stock,TRUE
+C12,c12-half-shell-green-mussel,Half Shell Green Mussel,21.9,19,shell,In Stock,TRUE
+C13,c13-scallop-meat,Scallop Meat,49.9,0,shell,In Stock,TRUE
+C14,c14-scallop-meat,Scallop Meat,45.9,0,shell,In Stock,TRUE
+C15,c15-scallop-meat,Scallop Meat,17.9,0,shell,In Stock,TRUE
+C16,c16-boiled-hotate-l,Boiled Hotate (L),36.9,0,shell,In Stock,TRUE
+C17,c17-king-crab,King Crab,168,0,crab,In Stock,TRUE
+C18,c18-alaska-king-crab-leg,Alaska King Crab Leg,280,180,crab,In Stock,TRUE
+C19,c19-blood-clam-meat,Blood Clam Meat,10.9,0,shell,In Stock,TRUE
+C20,c20-half-shell-scallop,Half Shell Scallop,32.9,0,scallop,In Stock,TRUE
+C21,c21-abalone,Abalone,39.9,35,shell,In Stock,TRUE
+C22,c22-razor-clam,Razor Clam,9.9,0,shell,In Stock,TRUE
+D1,d1-tiger-prawn-b,Tiger Prawn (B),39.9,0,prawn-squid,In Stock,TRUE
+D2,d2-tiger-prawn-s,Tiger Prawn (S),24.9,0,prawn-squid,In Stock,TRUE
+D3,d3-white-prawn-m,White Prawn (M),46.9,0,prawn-squid,In Stock,TRUE
+D4,d4-white-prawn-xl,White Prawn (XL),49.9,0,prawn-squid,In Stock,TRUE
+D5,d5-white-prawn-xxl,White Prawn (XXL),65.9,0,prawn-squid,In Stock,TRUE
+D6,d6-water-shrimps,Water Shrimps,58,0,prawn-squid,In Stock,TRUE
+D7,d7-prawn-meat,Prawn Meat,27,0,prawn-squid,In Stock,TRUE
+D8,d8-squid,Squid,35,0,prawn-squid,In Stock,TRUE
+D9,d9-squid-tube,Squid Tube,13.9,12.5,prawn-squid,In Stock,TRUE
+D10,d10-squid-head,Squid Head,17.9,0,prawn-squid,In Stock,TRUE
+D11,d11-squid-ring,Squid Ring,12.9,10.5,prawn-squid,In Stock,TRUE
+D12,d12-squid-flower,Squid Flower,13.9,10.5,prawn-squid,In Stock,TRUE
+E1,e1-beef-minced,Beef Minced,27.5,22.5,meat-series,In Stock,TRUE
+E2,e2-beef-streaky,Beef Streaky,46.9,0,meat-series,In Stock,TRUE
+E3,e3-lamb-shank,Lamb Shank,49.9,37,meat-series,In Stock,TRUE
+E4,e4-lamb-shoulder,Lamb Shoulder,43.9,0,meat-series,In Stock,TRUE
+E5,e5-chicken-minced,Chicken Minced,22.5,0,meat-series,In Stock,TRUE
+E6,e6-chicken-feet-skin-boneless,Chicken Feet Skin Boneless,22.9,19,meat-series,In Stock,TRUE
+E7,e7-chicken-tail,Chicken Tail,9.9,9,meat-series,In Stock,TRUE
+E8,e8-spring-chicken,Spring Chicken,9.9,0,meat-series,In Stock,TRUE
+E9,e9-perak-duck-wing,Perak Duck Wing,13.9,0,meat-series,In Stock,TRUE
+E10,e10-beef-chuck-tender,Beef Chuck Tender,49.9,39,meat-series,In Stock,TRUE
+F1,f1-sea-cucumber-sliced,Sea Cucumber Sliced,26.9,22,soup,In Stock,TRUE
+F2,f2-fish-lips,Fish Lips,28.9,23,soup,In Stock,TRUE
+F3,f3-sea-cucumber-meihua,Sea Cucumber Meihua,98,0,soup,In Stock,TRUE
+F4,f4-crab-claw-meat,Crab Claw Meat,29.9,0,soup,In Stock,TRUE
+G1,g1-saba-fillet,Saba Fillet,17.9,0,japanese,In Stock,TRUE
+G2,g2-cha-soba-noodles,Cha Soba Noodles,13.9,0,japanese,In Stock,TRUE
+G3,g3-chuka-kurage,Chuka Kurage,49.9,41,japanese,In Stock,TRUE
+G4,g4-tuna-maguro,Tuna Maguro,65,0,japanese,In Stock,TRUE
+G5,g5-tamagoyaki,Tamagoyaki,15.9,0,japanese,In Stock,TRUE
+G6,g6-ni-tako-sliced,Ni Tako Sliced,24.9,20,japanese,In Stock,TRUE
+G7,g7-sea-urchin,Sea Urchin,55,0,japanese,In Stock,TRUE
+G8,g8-ebiko,Ebiko,37.9,0,japanese,In Stock,TRUE
+G9,g9-edamame,Edamame,7.9,7.5,japanese,In Stock,TRUE
+G10,g10-shishamo,Shishamo,9.9,8.5,japanese,In Stock,TRUE
+G11,g11-white-miso,White Miso,10.9,0,japanese,In Stock,TRUE
+G12,g12-wakame,Wakame,23.9,22,japanese,In Stock,TRUE
+G13,g13-inari,Inari,24.9,0,japanese,In Stock,TRUE
+G14,g14-breaded-shrimps,Breaded Shrimps,13.9,0,japanese,In Stock,TRUE
+G15,g15-sushi-ebi,Sushi Ebi,26.5,26,japanese,In Stock,TRUE
+G16,g16-ama-ebi,Ama Ebi,22.5,20,japanese,In Stock,TRUE
+H1,h1-shrimps-paste,Shrimps Paste,10.9,9,steamboat,In Stock,TRUE
+H2,h2-tofu-fish-minced,Tofu Fish Minced,108,0,steamboat,In Stock,TRUE
+H3,h3-snow-crab-leg-meat,Snow Crab Leg Meat,12.9,0,steamboat,In Stock,TRUE
+H4,h4-steamboat-ramen,Steamboat Ramen,2.9,2.9,steamboat,In Stock,TRUE
+H5,h5-hdl-broth-flavor-hot-pot-seasoning,HDL Broth Flavor Hot Pot Seasoning,10,0,steamboat,In Stock,TRUE
+H6,h6-hdl-spicy-hot-pot-sauce,HDL Spicy Hot Pot Sauce,10,0,steamboat,In Stock,TRUE
+H7,h7-hdl-shrimp-flavour-hot-pot-sauce,HDL Shrimp Flavour Hot Pot Sauce,10,0,steamboat,In Stock,TRUE
+H8,h8-hdl-tomato-flavour-hot-pot-sauce,HDL Tomato Flavour Hot Pot Sauce,10,0,steamboat,In Stock,TRUE
+H9,h9-hdl-mushroom-flavour-hot-pot-sauce,HDL Mushroom Flavour Hot Pot Sauce,10,0,steamboat,In Stock,TRUE
+H10,h10-hdl-spicy-stir-fry-sauce,HDL Spicy Stir Fry Sauce,10,0,steamboat,In Stock,TRUE
+H11,h11-seafood-tofu,Seafood Tofu,14.5,12.2,steamboat,In Stock,TRUE
+H12,h12-jumbo-bakso,Jumbo Bakso,17.5,0,steamboat,In Stock,TRUE
+H13,h13-fish-dumpling,Fish Dumpling,14.5,7.5,steamboat,In Stock,TRUE
+H14,h14-fish-roe-lucky-bag,Fish Roe Lucky Bag,10.9,10,steamboat,In Stock,TRUE
+H15,h15-fried-beancurd-sheet,Fried Beancurd Sheet,8.5,8,steamboat,In Stock,TRUE
+H16,h16-cheese-seafood-tofu,Cheese Seafood Tofu,14.5,13,steamboat,In Stock,TRUE
+H17,h17-konnyaku,Konnyaku,5,0,steamboat,In Stock,TRUE
+H18,h18-korean-style-fish-cake,Korean Style Fish Cake,13.5,12,steamboat,In Stock,TRUE
+H19,h19-chicken-hot-dog,Chicken Hot Dog,4.5,0,steamboat,In Stock,TRUE
+H20,h20-fish-roe-prawn-paste-ball,Fish Roe Prawn Paste Ball,17,0,steamboat,In Stock,TRUE
+H21,h21-beef-meat-ball,Beef Meat Ball,13.9,11.5,steamboat,In Stock,TRUE
+H22,h22-fish-ball,Fish Ball,20.9,0,steamboat,In Stock,TRUE
+H23,h23-fish-paste,Fish Paste,6.5,6,steamboat,In Stock,TRUE
+H24,h24-fish-skin,Fish Skin,44,0,steamboat,In Stock,TRUE
+I1,i1-crinkle-fries,Crinkle Fries,9.9,0,others,In Stock,TRUE
+I2,i2-mukimame,Mukimame,7.9,0,others,In Stock,TRUE
+I3,i3-spicy-wedges,Spicy Wedges,14.9,12,others,In Stock,TRUE
+I4,i4-mini-chicken-cheese-sausage,Mini Chicken Cheese Sausage,14.9,14,others,In Stock,TRUE
+I5,i5-straight-cut-fries,Straight Cut Fries,9.9,9,others,In Stock,TRUE
+I6,i6-taro-ball-b,Taro Ball (B),6.9,0,others,In Stock,TRUE
+I7,i7-taro-roll,Taro Roll,7.5,0,others,In Stock,TRUE
+I8,i8-meat-loaf,Meat Loaf,13.5,0,others,In Stock,TRUE
+I9,i9-pinang-taro,Pinang Taro,15,12,others,In Stock,TRUE
+I10,i10-crispy-chicken-finger,Crispy Chicken Finger,14.9,0,others,In Stock,TRUE
+I11,i11-jumbo-ori-sausage,Jumbo Ori Sausage,18.9,0,others,In Stock,TRUE
+I12,i12-jumbo-cheese-sausage,Jumbo Cheese Sausage,20.9,0,others,In Stock,TRUE
+I13,i13-strawberries,Strawberries,13.9,0,others,In Stock,TRUE
+I14,i14-blueberries,Blueberries,16.9,0,others,In Stock,TRUE
+I15,i15-mixed-berries,Mixed Berries,13.9,0,others,In Stock,TRUE
+I16,i16-original-steamed-bun,Original Steamed Bun,7.5,0,others,In Stock,TRUE
+I17,i17-kewpie-mayonnaise,Kewpie Mayonnaise,24.9,22,others,In Stock,TRUE
+I18,i18-mentai-mayo,Mentai Mayo,22.5,0,others,In Stock,TRUE
+I19,i19-sweet-corn,Sweet Corn,9.9,9.5,others,In Stock,TRUE
+I20,i20-peanut-glutinous-rice-ball,Peanut Glutinous Rice Ball,7.5,0,others,In Stock,TRUE
+I21,i21-black-sesame-glutinous-rice-ball,Black Sesame Glutinous Rice Ball,7.5,0,others,In Stock,TRUE
+I22,i22-red-bean-glutinous-rice-ball,Red Bean Glutinous Rice Ball,7.5,0,others,In Stock,TRUE
+I23,i23-brown-sugar-glutinous-rice-cake,Brown Sugar Glutinous Rice Cake,7,0,others,In Stock,TRUE
+I24,i24-crispy-tofu,Crispy Tofu,10,9.3,others,In Stock,TRUE
+I25,i25-taro-rice-cake,Taro Rice Cake,13.9,0,others,In Stock,TRUE
+I26,i26-sweet-potato-rice-cake,Sweet Potato Rice Cake,13.9,0,others,In Stock,TRUE
+I27,i27-original-rice-cake,Original Rice Cake,13.9,0,others,In Stock,TRUE
+I28,i28-pumpkin-croquette,Pumpkin Croquette,22.5,0,others,In Stock,TRUE
+I29,i29-garlic-crayfish,Garlic Crayfish,39.9,29,others,In Stock,TRUE
+I30,i30-spicy-crayfish,Spicy Crayfish,39.9,0,others,In Stock,TRUE
+I31,i31-chicken-streaky,Chicken Streaky,20,0,others,In Stock,TRUE
+I32,i32-tempura-chicken-nugget,Tempura Chicken Nugget,10.9,10,others,In Stock,TRUE
+I33,i33-black-sesame-lava-mochi,Black Sesame Lava Mochi,7,0,others,In Stock,TRUE
+I34,i34-matcha-lava-mochi,Matcha Lava Mochi,7,0,others,In Stock,TRUE
+I35,i35-mango-lava-mochi,Mango Lava Mochi,7,0,others,In Stock,TRUE
+I36,i36-strawberry-lava-mochi,Strawberry Lava Mochi,7,0,others,In Stock,TRUE
+W001,w001-halibut,Halibut,0,0,whole-fish,In Stock,TRUE
+W002,w002-silver-pomfret,Silver Pomfret,0,0,whole-fish,In Stock,TRUE
+W003,w003-tiger-grouper,Tiger Grouper,0,45,whole-fish,In Stock,TRUE
+W004,w004-chinese-pomfret,Chinese Pomfret,0,0,whole-fish,In Stock,TRUE
+W005,w005-coral-grouper,Coral Grouper,0,100,whole-fish,In Stock,TRUE
+W006,w006-saba-fish-fillet,Saba Fish Fillet,0,32,fish-fillet,In Stock,TRUE
+W007,w007-perch-fillet,Perch Fillet,0,20,fish-fillet,In Stock,TRUE
+W008,w008-jellyfish,Jellyfish,0,16.5,sea-cucumber,In Stock,TRUE
+W009,w009-vannamei-prawn,Vannamei Prawn,0,0,prawn,In Stock,TRUE
+W010,w010-wild-tiger-prawn,Wild Tiger Prawn,0,0,prawn,In Stock,TRUE
+W011,w011-lobster,Lobster,0,130,prawn,In Stock,TRUE
+W012,w012-argentina-squid-iqf,Argentina Squid IQF,0,0,squid,In Stock,TRUE
+W013,w013-cuttlefish,Cuttlefish,0,0,squid,In Stock,TRUE
+W014,w014-french-crab,French Crab,0,65,crab,In Stock,TRUE
+W015,w015-flower-crab,Flower Crab,0,0,crab,In Stock,TRUE
+W016,w016-crab-stick-premium,Crab Stick Premium,0,11,crab,In Stock,TRUE
+W017,w017-chicken-drumstick,Chicken Drumstick,0,12.5,chicken,In Stock,TRUE
+W018,w018-whole-chicken,Whole Chicken,0,0,chicken,In Stock,TRUE
+W019,w019-beef-blade,Beef Blade,0,38,beef,In Stock,TRUE
+W020,w020-blade-allana,Blade (Allana),0,0,buffalo,In Stock,TRUE
+W021,w021-lamb-rack,Lamb Rack,0,88,lamb,In Stock,TRUE
+W022,w022-perak-whole-duck,Perak Whole Duck,0,0,duck,In Stock,TRUE
+W023,w023-naruto-maki,Naruto Maki,0,6,japanese,In Stock,TRUE
+W024,w024-chuka-wakame,Chuka Wakame,0,0,japanese,In Stock,TRUE
+W025,w025-asam-paste,Asam Paste,0,6,seasonings-sauces,In Stock,TRUE
+W026,w026-chicken-curry-paste,Chicken Curry Paste,0,6,seasonings-sauces,In Stock,TRUE
+W027,w027-vegetarian-super-ball,Vegetarian Super Ball,0,9.4,vegetarian,In Stock,TRUE
+W028,w028-blueberry-frozen,Blueberry Frozen,0,14,fruits,In Stock,TRUE
+W029,w029-coconut-ice-cream,Coconut Ice Cream,0,0,ice-cream,In Stock,TRUE
+W030,w030-mango-smoothie,Mango Smoothie,0,5.8,fresh-juice,In Stock,TRUE
