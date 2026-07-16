@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Boxes, Building2, ChevronDown, ClipboardList, Download, LayoutDashboard, LogOut, Plus, Save, Search, Settings, Tags, Trash2, Upload, Users } from "lucide-react";
+import { Boxes, Building2, Check, ChevronDown, ChevronUp, ClipboardList, Download, LayoutDashboard, LogOut, Plus, Save, Search, Settings, Tags, Trash2, Upload, Users, X } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { businessSettings, formatCurrency, orderStatuses } from "@/data/catalog";
 import type { BusinessSettings, Category, Order, OrderStatus, Product, ProductVariant, RestaurantCustomer } from "@/types/catalog";
@@ -30,10 +30,12 @@ export default function AdminPage() {
   const [customers, setCustomers] = useState<RestaurantCustomer[]>([]);
   const [settings, setSettings] = useState<BusinessSettings>(businessSettings);
   const [creatingCustomerId, setCreatingCustomerId] = useState<string | null>(null);
-  const [customerNotice, setCustomerNotice] = useState("");
-  const [adminNotice, setAdminNotice] = useState("");
-  const [priceNotice, setPriceNotice] = useState("");
-  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ text: string; tone: "ok" | "err" } | null>(null);
+  const [dirtyProducts, setDirtyProducts] = useState<Set<string>>(new Set());
+  const [dirtyCategories, setDirtyCategories] = useState<Set<string>>(new Set());
+  const [uploadingCsv, setUploadingCsv] = useState(false);
+  const [drawerProductId, setDrawerProductId] = useState<string | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<Set<string>>(new Set());
   const [productSearch, setProductSearch] = useState("");
   const [productCategoryFilter, setProductCategoryFilter] = useState("all");
   const [productStatusFilter, setProductStatusFilter] = useState("all");
@@ -43,6 +45,13 @@ export default function AdminPage() {
   const [productTotal, setProductTotal] = useState(0);
   const [activeProductTotal, setActiveProductTotal] = useState(0);
   const [featuredProductTotal, setFeaturedProductTotal] = useState(0);
+
+  const toastTimer = useRef<number | null>(null);
+  const notify = useCallback((text: string, tone: "ok" | "err" = "ok") => {
+    setToast({ text, tone });
+    if (toastTimer.current) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 3500);
+  }, []);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -82,17 +91,60 @@ export default function AdminPage() {
     });
   }, [categoryLookup, managedProducts, productCatalogFilter, productCategoryFilter, productSearch, productStatusFilter]);
 
-  function updateProduct(productId: string, patch: Partial<Product>) {
+  function updateProduct(productId: string, patch: Partial<Product>, markDirty = true) {
     setManagedProducts((current) => current.map((product) => (product.id === productId ? { ...product, ...patch } : product)));
+    if (markDirty) setDirtyProducts((current) => new Set(current).add(productId));
   }
 
-  function updateCategory(categoryId: string, patch: Partial<Category>) {
+  function markProductClean(productId: string) {
+    setDirtyProducts((current) => {
+      const next = new Set(current);
+      next.delete(productId);
+      return next;
+    });
+  }
+
+  function updateCategory(categoryId: string, patch: Partial<Category>, markDirty = true) {
     setManagedCategories((current) => current.map((category) => (category.id === categoryId ? { ...category, ...patch } : category)));
+    if (markDirty) setDirtyCategories((current) => new Set(current).add(categoryId));
+  }
+
+  function markCategoryClean(categoryId: string) {
+    setDirtyCategories((current) => {
+      const next = new Set(current);
+      next.delete(categoryId);
+      return next;
+    });
+  }
+
+  async function moveCategory(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= managedCategories.length) return;
+    const before = new Map(managedCategories.map((category) => [category.id, category.sortOrder]));
+    const next = [...managedCategories];
+    const [moved] = next.splice(index, 1);
+    next.splice(target, 0, moved);
+    const renumbered = next.map((category, position) => ({ ...category, sortOrder: position + 1 }));
+    setManagedCategories(renumbered);
+    const changed = renumbered.filter((category) => !category.id.startsWith("local-") && before.get(category.id) !== category.sortOrder);
+    try {
+      for (const category of changed) {
+        await adminFetch("/api/admin/categories", { method: "PATCH", body: JSON.stringify(category) });
+      }
+      notify("Category order updated. 分类顺序已更新");
+    } catch (caught) {
+      notify(caught instanceof Error ? caught.message : "Unable to update order.", "err");
+    }
   }
 
   async function updateOrderStatus(orderId: string, status: OrderStatus) {
     setOrders((current) => current.map((order) => (order.id === orderId ? { ...order, status } : order)));
-    await adminFetch("/api/admin/orders", { method: "PATCH", body: JSON.stringify({ id: orderId, status }) }).catch((error) => setAdminNotice(error.message));
+    try {
+      await adminFetch("/api/admin/orders", { method: "PATCH", body: JSON.stringify({ id: orderId, status }) });
+      notify(`Order updated to ${status}.`);
+    } catch (caught) {
+      notify(caught instanceof Error ? caught.message : "Unable to update order.", "err");
+    }
   }
 
   function updateCustomer(customerId: string, patch: Partial<RestaurantCustomer>) {
@@ -101,8 +153,8 @@ export default function AdminPage() {
 
   function addProduct() {
     const next: Product = {
-      id: `local-${Date.now()}`,
-      slug: `new-product-${Date.now()}`,
+      id: localId("local"),
+      slug: localId("new-product"),
       sku: `NEW-${managedProducts.length + 1}`,
       categoryId: managedCategories[0]?.id || "",
       categorySlug: managedCategories[0]?.slug,
@@ -122,12 +174,23 @@ export default function AdminPage() {
       active: true,
     };
     setManagedProducts((current) => [next, ...current]);
+    setDirtyProducts((current) => new Set(current).add(next.id));
+    setDrawerProductId(next.id);
+  }
+
+  function toggleSelected(productId: string) {
+    setSelectedProducts((current) => {
+      const next = new Set(current);
+      if (next.has(productId)) next.delete(productId);
+      else next.add(productId);
+      return next;
+    });
   }
 
   function addCustomer() {
     setCustomers((current) => [
       {
-        id: `r-${Date.now()}`,
+        id: localId("r"),
         restaurantName: "New Restaurant",
         legalCompanyName: "New Restaurant Sdn. Bhd.",
         picName: "PIC Name",
@@ -156,7 +219,6 @@ export default function AdminPage() {
 
   async function createCustomerAccount(customer: RestaurantCustomer) {
     setCreatingCustomerId(customer.id);
-    setCustomerNotice("");
     try {
       const response = await adminFetch("/api/admin/customers", {
         method: "POST",
@@ -164,9 +226,9 @@ export default function AdminPage() {
       });
       const payload = await response.json();
       updateCustomer(customer.id, { loginEnabled: true, status: "Active", userId: payload.customer?.user_id || payload.customer?.userId });
-      setCustomerNotice(`Login account created for ${customer.email}.`);
+      notify(`Login account created for ${customer.email}.`);
     } catch (caught) {
-      setCustomerNotice(caught instanceof Error ? caught.message : "Unable to create account.");
+      notify(caught instanceof Error ? caught.message : "Unable to create account.", "err");
     } finally {
       setCreatingCustomerId(null);
     }
@@ -193,7 +255,7 @@ export default function AdminPage() {
       if (Array.isArray(customerPayload.customers)) setCustomers(customerPayload.customers);
       if (settingsPayload.settings) setSettings(settingsPayload.settings);
     } catch (caught) {
-      setAdminNotice(caught instanceof Error ? caught.message : "Unable to load admin data.");
+      notify(caught instanceof Error ? caught.message : "Unable to load admin data.", "err");
     }
   }
 
@@ -212,9 +274,9 @@ export default function AdminPage() {
       setFeaturedProductTotal(payload.featuredTotal || 0);
       setProductPage(payload.page || page);
     } catch (caught) {
-      setAdminNotice(caught instanceof Error ? caught.message : "Unable to load products.");
+      notify(caught instanceof Error ? caught.message : "Unable to load products.", "err");
     }
-  }, [productCatalogFilter, productCategoryFilter, productSearch, productStatusFilter]);
+  }, [notify, productCatalogFilter, productCategoryFilter, productSearch, productStatusFilter]);
 
   async function saveProduct(product: Product) {
     try {
@@ -224,10 +286,13 @@ export default function AdminPage() {
         body: JSON.stringify(product),
       });
       const payload = await response.json();
-      if (payload.product) updateProduct(product.id, payload.product);
-      setAdminNotice(`Saved product: ${product.name.en}`);
+      if (payload.product) updateProduct(product.id, payload.product, false);
+      markProductClean(product.id);
+      notify(`Saved: ${product.name.en}`);
+      return true;
     } catch (caught) {
-      setAdminNotice(caught instanceof Error ? caught.message : "Unable to save product.");
+      notify(caught instanceof Error ? caught.message : "Unable to save product.", "err");
+      return false;
     }
   }
 
@@ -241,12 +306,16 @@ export default function AdminPage() {
           body: JSON.stringify(product),
         });
         const payload = await response.json();
-        if (payload.product) updateProduct(product.id, payload.product);
+        if (payload.product) updateProduct(product.id, payload.product, false);
+        markProductClean(product.id);
         saved += 1;
+        setToast({ text: `Saving prices... ${saved}/${filteredProducts.length}`, tone: "ok" });
       }
-      setPriceNotice(`Saved prices for ${saved} filtered products.`);
+      notify(`Saved prices for ${saved} filtered products.`);
+      return true;
     } catch (caught) {
-      setPriceNotice(caught instanceof Error ? caught.message : "Unable to save filtered prices.");
+      notify(caught instanceof Error ? caught.message : "Unable to save filtered prices.", "err");
+      return false;
     }
   }
 
@@ -279,24 +348,27 @@ export default function AdminPage() {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
-    setPriceNotice(`Downloaded ${filteredProducts.length} filtered products as CSV.`);
+    notify(`Downloaded ${filteredProducts.length} filtered products as CSV.`);
   }
 
   async function saveCategory(category: Category) {
     try {
       const response = await adminFetch("/api/admin/categories", { method: category.id.startsWith("local-") ? "POST" : "PATCH", body: JSON.stringify(category) });
       const payload = await response.json();
-      if (payload.category) updateCategory(category.id, payload.category);
-      setAdminNotice(`Saved category: ${category.name.en}`);
+      if (payload.category) updateCategory(category.id, payload.category, false);
+      markCategoryClean(category.id);
+      notify(`Saved category: ${category.name.en}`);
+      return true;
     } catch (caught) {
-      setAdminNotice(caught instanceof Error ? caught.message : "Unable to save category.");
+      notify(caught instanceof Error ? caught.message : "Unable to save category.", "err");
+      return false;
     }
   }
 
   function addCategory() {
     setManagedCategories((current) => [{
-      id: `local-${Date.now()}`,
-      slug: `new-category-${Date.now()}`,
+      id: localId("local"),
+      slug: localId("new-category"),
       name: { en: "New Category", zh: "新分类" },
       description: { en: "", zh: "" },
       image: "/product-placeholder.svg",
@@ -312,26 +384,76 @@ export default function AdminPage() {
       setManagedCategories((current) => current.filter((item) => item.id !== category.id));
       return;
     }
+    if (!window.confirm(`Delete category "${category.name.en}"? This cannot be undone.`)) return;
     try {
       await adminFetch(`/api/admin/categories?id=${encodeURIComponent(category.id)}`, { method: "DELETE" });
       setManagedCategories((current) => current.filter((item) => item.id !== category.id));
-      setAdminNotice(`Deleted category: ${category.name.en}`);
+      notify(`Deleted category: ${category.name.en}`);
     } catch (caught) {
-      setAdminNotice(caught instanceof Error ? caught.message : "Unable to delete category.");
+      notify(caught instanceof Error ? caught.message : "Unable to delete category.", "err");
     }
   }
 
   async function deleteProduct(product: Product) {
     if (product.id.startsWith("local-")) {
       setManagedProducts((current) => current.filter((item) => item.id !== product.id));
-      return;
+      markProductClean(product.id);
+      return true;
     }
+    if (!window.confirm(`Delete product "${product.name.en}"? This cannot be undone.`)) return false;
     try {
       await adminFetch(`/api/admin/products?id=${encodeURIComponent(product.id)}`, { method: "DELETE" });
       setManagedProducts((current) => current.filter((item) => item.id !== product.id));
-      setAdminNotice(`Deleted product: ${product.name.en}`);
+      markProductClean(product.id);
+      notify(`Deleted product: ${product.name.en}`);
+      return true;
     } catch (caught) {
-      setAdminNotice(caught instanceof Error ? caught.message : "Unable to delete product.");
+      notify(caught instanceof Error ? caught.message : "Unable to delete product.", "err");
+      return false;
+    }
+  }
+
+  async function bulkUpdateProducts(patch: Partial<Product>) {
+    const targets = filteredProducts.filter((product) => selectedProducts.has(product.id));
+    if (!targets.length) return;
+    let done = 0;
+    try {
+      for (const product of targets) {
+        const merged = { ...product, ...patch };
+        const isSeedId = product.id.startsWith("p-") || product.id.startsWith("local-");
+        const response = await adminFetch("/api/admin/products", { method: isSeedId ? "POST" : "PATCH", body: JSON.stringify(merged) });
+        const payload = await response.json();
+        updateProduct(product.id, payload.product || patch, false);
+        markProductClean(product.id);
+        done += 1;
+        setToast({ text: `Updating... ${done}/${targets.length}`, tone: "ok" });
+      }
+      notify(`Updated ${done} products.`);
+    } catch (caught) {
+      notify(`Updated ${done}/${targets.length}. ${caught instanceof Error ? caught.message : "Request failed."}`, "err");
+    }
+  }
+
+  async function bulkDeleteProducts() {
+    const targets = filteredProducts.filter((product) => selectedProducts.has(product.id));
+    if (!targets.length) return;
+    if (!window.confirm(`Delete ${targets.length} selected products? This cannot be undone.`)) return;
+    let done = 0;
+    try {
+      for (const product of targets) {
+        if (!product.id.startsWith("local-")) {
+          await adminFetch(`/api/admin/products?id=${encodeURIComponent(product.id)}`, { method: "DELETE" });
+        }
+        setManagedProducts((current) => current.filter((item) => item.id !== product.id));
+        markProductClean(product.id);
+        if (drawerProductId === product.id) setDrawerProductId(null);
+        done += 1;
+        setToast({ text: `Deleting... ${done}/${targets.length}`, tone: "ok" });
+      }
+      setSelectedProducts(new Set());
+      notify(`Deleted ${done} products.`);
+    } catch (caught) {
+      notify(`Deleted ${done}/${targets.length}. ${caught instanceof Error ? caught.message : "Request failed."}`, "err");
     }
   }
 
@@ -340,9 +462,11 @@ export default function AdminPage() {
       const response = await adminFetch("/api/admin/customers", { method: "PATCH", body: JSON.stringify(customer) });
       const payload = await response.json();
       if (payload.customer) updateCustomer(customer.id, payload.customer);
-      setCustomerNotice(`Saved customer: ${customer.restaurantName}`);
+      notify(`Saved customer: ${customer.restaurantName}`);
+      return true;
     } catch (caught) {
-      setCustomerNotice(caught instanceof Error ? caught.message : "Unable to save customer.");
+      notify(caught instanceof Error ? caught.message : "Unable to save customer.", "err");
+      return false;
     }
   }
 
@@ -351,24 +475,28 @@ export default function AdminPage() {
       const response = await adminFetch("/api/admin/settings", { method: "PATCH", body: JSON.stringify(settings) });
       const payload = await response.json();
       if (payload.settings) setSettings(payload.settings);
-      setAdminNotice("Business settings saved.");
+      notify("Business settings saved.");
+      return true;
     } catch (caught) {
-      setAdminNotice(caught instanceof Error ? caught.message : "Unable to save settings.");
+      notify(caught instanceof Error ? caught.message : "Unable to save settings.", "err");
+      return false;
     }
   }
 
   async function uploadPriceCsv(file: File | undefined) {
     if (!file) return;
-    setPriceNotice("");
+    setUploadingCsv(true);
     const formData = new FormData();
     formData.set("file", file);
     try {
       const response = await adminFetch("/api/admin/products/prices", { method: "POST", body: formData });
       const payload = await response.json();
       await loadAdminData();
-      setPriceNotice(`Price CSV processed. Updated ${payload.updated || 0}${payload.unmatched ? `, unmatched ${payload.unmatched}` : ""}.`);
+      notify(`Price CSV processed. Updated ${payload.updated || 0}${payload.unmatched ? `, unmatched ${payload.unmatched}` : ""}.`);
     } catch (caught) {
-      setPriceNotice(caught instanceof Error ? caught.message : "Unable to update prices.");
+      notify(caught instanceof Error ? caught.message : "Unable to update prices.", "err");
+    } finally {
+      setUploadingCsv(false);
     }
   }
 
@@ -380,6 +508,22 @@ export default function AdminPage() {
     const timeout = window.setTimeout(() => loadAdminProducts(1), 300);
     return () => window.clearTimeout(timeout);
   }, [loadAdminProducts]);
+
+  useEffect(() => {
+    if (!drawerProductId) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDrawerProductId(null);
+    };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [drawerProductId]);
+
+  const drawerProduct = drawerProductId ? managedProducts.find((product) => product.id === drawerProductId) : undefined;
+  const allFilteredSelected = filteredProducts.length > 0 && filteredProducts.every((product) => selectedProducts.has(product.id));
 
   return (
     <div className="min-h-screen bg-[#f7f2e8] pt-[104px]">
@@ -420,15 +564,13 @@ export default function AdminPage() {
           </nav>
 
           <section className="min-w-0">
-            {adminNotice && <p className="mb-4 border border-[#ddd7cc] bg-white p-3 text-sm font-bold text-[#07586b]">{adminNotice}</p>}
-
             {tab === "dashboard" && (
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
                 <Metric label="Active Products" value={activeProductTotal.toString()} />
                 <Metric label="Pending Orders" value={pendingOrders.length.toString()} />
                 <Metric label="Restaurants" value={customers.length.toString()} />
                 <Metric label="Featured" value={featuredProductTotal.toString()} />
-                <Panel title="Latest orders" description="Status updates are reflected in restaurant order history when connected to Supabase.">
+                <Panel title="Latest orders" description="The most recent orders from retail and restaurant customers. 最近的零售与餐厅订单。">
                   <OrdersTable orders={orders.slice(0, 6)} onStatusChange={updateOrderStatus} />
                 </Panel>
               </div>
@@ -437,7 +579,7 @@ export default function AdminPage() {
             {tab === "products" && (
               <Panel
                 title="Manage products"
-                description={`Showing ${filteredProducts.length} products on this page, ${productTotal} total. Search, filter, quick edit prices, then expand only the product you need.`}
+                description={`${productTotal} products total. Click a row to edit, or tick rows for bulk actions. 点一行进入编辑，勾选多行可批量操作。`}
                 action={
                   <button type="button" onClick={addProduct} className="ff-button ff-button-primary h-11">
                     <Plus className="h-4 w-4" />
@@ -457,69 +599,84 @@ export default function AdminPage() {
                   onStatusFilter={setProductStatusFilter}
                 />
 
-                <div className="mt-5 space-y-3">
-                  {filteredProducts.map((product) => {
-                    const category = categoryLookup.get(product.categorySlug || product.categoryId);
-                    const isExpanded = expandedProductId === product.id;
-                    return (
-                      <div key={product.id} className="border border-[#ddd7cc] bg-white">
-                        <div className="grid gap-3 p-3 md:grid-cols-[72px_minmax(0,1fr)] md:p-4">
-                          <div className="h-[72px] w-[72px] overflow-hidden bg-[#f7f2e8]">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={product.image} alt={product.name.en} className="h-full w-full object-cover" />
-                          </div>
-                          <div className="min-w-0 space-y-3">
-                            <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-                              <div className="min-w-0">
-                                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{product.sku}</p>
-                                <h3 className="mt-1 break-words text-base font-black leading-snug text-slate-950">{product.name.en}</h3>
-                                <p className="mt-1 break-words text-xs font-bold text-slate-500">{category?.name.en || product.categoryName?.en || product.categoryId}</p>
-                              </div>
-                              <div className="flex shrink-0 flex-wrap items-center gap-2 xl:justify-end">
-                                <label className="inline-flex h-10 items-center gap-2 border border-[#ddd7cc] px-3 text-xs font-black text-slate-700">
-                                  <input type="checkbox" checked={product.active} onChange={(event) => updateProduct(product.id, { active: event.target.checked })} />
-                                  Active
-                                </label>
-                                <button type="button" onClick={() => saveProduct(product)} className="ff-button ff-button-primary h-10 min-w-0 px-4 text-xs">
-                                  Save
-                                </button>
-                                <button type="button" onClick={() => deleteProduct(product)} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-3 text-xs text-red-700" aria-label={`Delete ${product.name.en}`}>
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                                <button type="button" onClick={() => setExpandedProductId(isExpanded ? null : product.id)} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-4 text-xs">
-                                  {isExpanded ? "Close" : "Edit"}
-                                  <ChevronDown className={`h-4 w-4 transition ${isExpanded ? "rotate-180" : ""}`} />
-                                </button>
-                              </div>
-                            </div>
-                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[minmax(110px,150px)_minmax(120px,170px)_minmax(140px,180px)]">
-                              <ProductQuickPrice label="Public" value={product.publicPrice} onChange={(value) => updateProduct(product.id, { publicPrice: value })} />
-                              <ProductQuickPrice label="Restaurant" value={product.restaurantPrice} onChange={(value) => updateProduct(product.id, { restaurantPrice: value })} />
-                              <label className="block min-w-0 sm:col-span-2 lg:col-span-1">
-                                <span className="admin-label">Stock</span>
-                                <select value={product.stockStatus} onChange={(event) => updateProduct(product.id, { stockStatus: event.target.value as Product["stockStatus"] })} className="admin-input h-10">
-                                  {stockStatuses.map((status) => (
-                                    <option key={status}>{status}</option>
-                                  ))}
-                                </select>
-                              </label>
-                            </div>
-                          </div>
-                        </div>
+                {selectedProducts.size > 0 && (
+                  <div className="sticky top-2 z-20 mt-4 flex flex-wrap items-center gap-2 bg-[#07586b] p-3 text-white shadow-lg">
+                    <span className="text-sm font-black">{selectedProducts.size} selected</span>
+                    <button type="button" onClick={() => setSelectedProducts(new Set())} className="inline-flex h-8 items-center gap-1 px-2 text-xs font-bold text-white/70 hover:text-white" aria-label="Clear selection">
+                      <X className="h-3.5 w-3.5" />
+                      Clear
+                    </button>
+                    <div className="ml-auto flex flex-wrap gap-2">
+                      <button type="button" onClick={() => bulkUpdateProducts({ active: true })} className="h-9 border border-white/40 bg-white/10 px-3 text-xs font-black hover:bg-white/20">Set Active</button>
+                      <button type="button" onClick={() => bulkUpdateProducts({ active: false })} className="h-9 border border-white/40 bg-white/10 px-3 text-xs font-black hover:bg-white/20">Set Inactive</button>
+                      <button type="button" onClick={() => bulkUpdateProducts({ featured: true })} className="h-9 border border-white/40 bg-white/10 px-3 text-xs font-black hover:bg-white/20">Feature</button>
+                      <button type="button" onClick={() => bulkUpdateProducts({ featured: false })} className="h-9 border border-white/40 bg-white/10 px-3 text-xs font-black hover:bg-white/20">Unfeature</button>
+                      <button type="button" onClick={() => bulkUpdateProducts({ retailVisible: true })} className="h-9 border border-white/40 bg-white/10 px-3 text-xs font-black hover:bg-white/20">Show in Retail</button>
+                      <button type="button" onClick={() => bulkUpdateProducts({ retailVisible: false })} className="h-9 border border-white/40 bg-white/10 px-3 text-xs font-black hover:bg-white/20">B2B Only</button>
+                      <button type="button" onClick={bulkDeleteProducts} className="h-9 border border-red-400 bg-red-600 px-3 text-xs font-black hover:bg-red-700">Delete</button>
+                    </div>
+                  </div>
+                )}
 
-                        {isExpanded && (
-                          <ProductEditor
-                            categories={managedCategories}
-                            product={product}
-                            productCategory={category}
-                            onProductChange={(patch) => updateProduct(product.id, patch)}
-                            onSave={() => saveProduct(product)}
+                <div className="mt-4 overflow-x-auto border border-[#ddd7cc] bg-white">
+                  <table className="w-full text-left text-sm md:min-w-[900px]">
+                    <thead className="bg-[#f7f2e8] text-xs uppercase text-slate-400">
+                      <tr>
+                        <th className="w-10 p-3">
+                          <input
+                            type="checkbox"
+                            checked={allFilteredSelected}
+                            onChange={() => setSelectedProducts(allFilteredSelected ? new Set() : new Set(filteredProducts.map((product) => product.id)))}
+                            aria-label="Select all products on this page"
                           />
-                        )}
-                      </div>
-                    );
-                  })}
-                  {filteredProducts.length === 0 && <div className="border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-bold text-slate-500">No products match the current filters.</div>}
+                        </th>
+                        <th className="w-16 p-3">Image</th>
+                        <th className="p-3">Product</th>
+                        <th className="hidden p-3 lg:table-cell">Category</th>
+                        <th className="p-3">Public</th>
+                        <th className="hidden p-3 md:table-cell">Restaurant</th>
+                        <th className="hidden p-3 md:table-cell">Stock</th>
+                        <th className="hidden p-3 md:table-cell">Visibility</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredProducts.map((product) => {
+                        const category = categoryLookup.get(product.categorySlug || product.categoryId);
+                        return (
+                          <tr key={product.id} onClick={() => setDrawerProductId(product.id)} className="cursor-pointer border-t border-[#eee7da] transition hover:bg-[#faf7f0]">
+                            <td className="p-3" onClick={(event) => event.stopPropagation()}>
+                              <input type="checkbox" checked={selectedProducts.has(product.id)} onChange={() => toggleSelected(product.id)} aria-label={`Select ${product.name.en}`} />
+                            </td>
+                            <td className="p-3">
+                              <div className="h-12 w-12 overflow-hidden bg-[#f7f2e8]">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={product.image} alt={product.name.en} className="h-full w-full object-cover" />
+                              </div>
+                            </td>
+                            <td className="max-w-[280px] p-3">
+                              <p className="truncate font-black text-slate-950">
+                                {product.name.en}
+                                {dirtyProducts.has(product.id) && <span className="ml-2 inline-block h-2 w-2 rounded-full bg-amber-500 align-middle" title="Unsaved changes" />}
+                              </p>
+                              <p className="truncate text-xs font-bold text-slate-500">{product.sku ? `${product.sku} · ` : ""}{product.name.zh}</p>
+                            </td>
+                            <td className="hidden p-3 text-xs font-bold text-slate-500 lg:table-cell">{category?.name.en || product.categoryName?.en || "—"}</td>
+                            <td className="p-3 font-black text-[#07586b]">{product.publicPrice ? formatCurrency(product.publicPrice) : "Ask"}</td>
+                            <td className="hidden p-3 font-black text-slate-700 md:table-cell">{product.restaurantPrice ? formatCurrency(product.restaurantPrice) : "Ask"}</td>
+                            <td className="hidden p-3 md:table-cell"><StatusBadge value={product.stockStatus} /></td>
+                            <td className="hidden p-3 md:table-cell">
+                              <div className="flex flex-wrap gap-1">
+                                <span className={`px-2 py-0.5 text-[10px] font-black uppercase ${product.active ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-500"}`}>{product.active ? "Active" : "Off"}</span>
+                                {product.featured && <span className="bg-amber-100 px-2 py-0.5 text-[10px] font-black uppercase text-amber-700">Featured</span>}
+                                <span className={`px-2 py-0.5 text-[10px] font-black uppercase ${product.retailVisible ? "bg-sky-100 text-sky-700" : "bg-slate-100 text-slate-500"}`}>{product.retailVisible ? "Retail" : "B2B"}</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  {filteredProducts.length === 0 && <div className="border-t border-dashed border-slate-300 p-8 text-center text-sm font-bold text-slate-500">No products match the current filters.</div>}
                 </div>
                 <div className="mt-5 flex items-center justify-between gap-3 border-t border-[#eee7da] pt-4">
                   <button type="button" disabled={productPage <= 1} onClick={() => loadAdminProducts(productPage - 1)} className="ff-button ff-button-outline h-10 bg-white disabled:opacity-40">Previous</button>
@@ -530,19 +687,30 @@ export default function AdminPage() {
             )}
 
             {tab === "categories" && (
-              <Panel title="Manage categories" description="Edit, sort or delete categories. A category with products cannot be deleted." action={<button type="button" onClick={addCategory} className="ff-button ff-button-primary h-11"><Plus className="h-4 w-4" />Add Category</button>}>
+              <Panel title="Manage categories" description="Use the arrows to reorder — the website shows categories in this order. 用箭头调整顺序，网站按此排序。" action={<button type="button" onClick={addCategory} className="ff-button ff-button-primary h-11"><Plus className="h-4 w-4" />Add Category</button>}>
                 <div className="grid gap-4 md:grid-cols-2">
-                  {managedCategories.map((category) => (
-                    <div key={category.id} className="border border-[#ddd7cc] p-4 sm:p-5">
-                      <div className="grid gap-4 sm:grid-cols-[130px_1fr]">
+                  {managedCategories.map((category, index) => (
+                    <div key={category.id} className="border border-[#ddd7cc] bg-white p-4 sm:p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">#{index + 1}</span>
+                        <div className="flex gap-1">
+                          <button type="button" disabled={index === 0} onClick={() => moveCategory(index, -1)} className="inline-flex h-9 w-9 items-center justify-center border border-[#ddd7cc] bg-white hover:bg-[#f7f2e8] disabled:opacity-30" aria-label={`Move ${category.name.en} up`}>
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                          <button type="button" disabled={index === managedCategories.length - 1} onClick={() => moveCategory(index, 1)} className="inline-flex h-9 w-9 items-center justify-center border border-[#ddd7cc] bg-white hover:bg-[#f7f2e8] disabled:opacity-30" aria-label={`Move ${category.name.en} down`}>
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="mt-3 grid gap-4 sm:grid-cols-[110px_1fr]">
                         <div className="min-w-0">
                           <div className="relative aspect-square overflow-hidden bg-[#f7f2e8]">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={category.image} alt={category.name.en} className="h-full w-full object-cover" />
                           </div>
-                          <label className="mt-3 inline-flex h-10 w-full cursor-pointer items-center justify-center border border-[#ddd7cc] text-xs font-black text-[#07586b] hover:bg-[#f7f2e8]">
-                            <Upload className="mr-2 h-4 w-4" />
-                            Upload photo
+                          <label className="mt-2 inline-flex h-10 w-full cursor-pointer items-center justify-center border border-[#ddd7cc] text-xs font-black text-[#07586b] hover:bg-[#f7f2e8]">
+                            <Upload className="mr-1.5 h-4 w-4" />
+                            Upload 上传
                             <input
                               type="file"
                               accept="image/*"
@@ -551,37 +719,48 @@ export default function AdminPage() {
                             />
                           </label>
                         </div>
-                        <div className="grid gap-2">
-                        <input value={category.name.en} onChange={(event) => updateCategory(category.id, { name: { ...category.name, en: event.target.value } })} className="admin-input font-black" />
-                        <input value={category.name.zh} onChange={(event) => updateCategory(category.id, { name: { ...category.name, zh: event.target.value } })} className="admin-input" />
-                        <input value={category.slug} onChange={(event) => updateCategory(category.id, { slug: event.target.value })} className="admin-input text-xs" />
-                        <input type="number" value={category.sortOrder} onChange={(event) => updateCategory(category.id, { sortOrder: Number(event.target.value) || 0 })} className="admin-input" aria-label="Sort order" />
-                        <input value={category.group?.en || ""} onChange={(event) => updateCategory(category.id, { group: { en: event.target.value, zh: category.group?.zh || "" } })} className="admin-input" />
-                        <input value={category.group?.zh || ""} onChange={(event) => updateCategory(category.id, { group: { en: category.group?.en || "", zh: event.target.value } })} className="admin-input" />
-                        <input value={category.image} onChange={(event) => updateCategory(category.id, { image: event.target.value })} className="admin-input text-xs" />
-                        <textarea
-                          value={(category.classificationKeywords || []).join(", ")}
-                          onChange={(event) =>
-                            updateCategory(category.id, {
-                              classificationKeywords: event.target.value
-                                .split(",")
-                                .map((item) => item.trim())
-                                .filter(Boolean),
-                            })
-                          }
-                          className="admin-input py-3 text-xs"
-                          rows={4}
-                          style={{ height: "auto" }}
-                        />
+                        <div className="grid content-start gap-3">
+                          <ProductField label="Name (English)" value={category.name.en} onChange={(value) => updateCategory(category.id, { name: { ...category.name, en: value } })} />
+                          <ProductField label="名称 (中文)" value={category.name.zh} onChange={(value) => updateCategory(category.id, { name: { ...category.name, zh: value } })} />
                         </div>
                       </div>
-                      <label className="mt-4 flex items-center gap-2 text-sm font-black text-slate-700">
-                        <input type="checkbox" checked={category.active} onChange={(event) => updateCategory(category.id, { active: event.target.checked })} />
-                        Active
-                      </label>
+                      <div className="mt-3">
+                        <Toggle
+                          checked={category.active}
+                          label="Active 显示"
+                          hint="Show this category on the website 在网站显示这个分类"
+                          onChange={(checked) => updateCategory(category.id, { active: checked })}
+                        />
+                      </div>
+                      <details className="group mt-3 border border-dashed border-[#ddd7cc]">
+                        <summary className="cursor-pointer p-3 text-xs font-black text-slate-500">Advanced 高级设置 (slug, group, keywords)</summary>
+                        <div className="grid gap-3 border-t border-[#eee7da] p-3">
+                          <ProductField label="Slug" value={category.slug} onChange={(value) => updateCategory(category.id, { slug: value })} />
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <ProductField label="Group (English)" value={category.group?.en || ""} onChange={(value) => updateCategory(category.id, { group: { en: value, zh: category.group?.zh || "" } })} />
+                            <ProductField label="Group (中文)" value={category.group?.zh || ""} onChange={(value) => updateCategory(category.id, { group: { en: category.group?.en || "", zh: value } })} />
+                          </div>
+                          <label className="block">
+                            <span className="admin-label">Auto-classify keywords 自动归类关键词 (comma separated)</span>
+                            <textarea
+                              value={(category.classificationKeywords || []).join(", ")}
+                              onChange={(event) =>
+                                updateCategory(category.id, {
+                                  classificationKeywords: event.target.value
+                                    .split(",")
+                                    .map((item) => item.trim())
+                                    .filter(Boolean),
+                                })
+                              }
+                              className="admin-input h-24 resize-none py-3 text-xs"
+                            />
+                          </label>
+                          <ProductField label="Image URL" value={category.image} onChange={(value) => updateCategory(category.id, { image: value })} />
+                        </div>
+                      </details>
                       <div className="mt-4 flex gap-2">
-                        <button type="button" onClick={() => saveCategory(category)} className="ff-button ff-button-outline h-11 min-w-0 bg-white px-4">Save Category</button>
-                        <button type="button" onClick={() => deleteCategory(category)} className="ff-button ff-button-outline h-11 min-w-0 bg-white px-4 text-red-700"><Trash2 className="h-4 w-4" />Delete</button>
+                        <AsyncButton onRun={() => saveCategory(category)} dirty={dirtyCategories.has(category.id)} className="ff-button ff-button-primary h-11 min-w-0 flex-1 px-4">Save 保存</AsyncButton>
+                        <button type="button" onClick={() => deleteCategory(category)} className="ff-button ff-button-outline h-11 min-w-0 bg-white px-4 text-red-700" aria-label={`Delete ${category.name.en}`}><Trash2 className="h-4 w-4" /></button>
                       </div>
                     </div>
                   ))}
@@ -590,7 +769,7 @@ export default function AdminPage() {
             )}
 
             {tab === "orders" && (
-              <Panel title="View restaurant orders" description="Update order status from pending through delivered or cancelled.">
+              <Panel title="Orders" description="Change the status as you process each order. 处理订单时在这里更改状态。">
                 <OrdersTable orders={orders} onStatusChange={updateOrderStatus} />
               </Panel>
             )}
@@ -598,7 +777,7 @@ export default function AdminPage() {
             {tab === "customers" && (
               <Panel
                 title="Restaurant customers"
-                description="Owner creates restaurant login accounts and stores Malaysia company, tax and e-invoice details."
+                description="Create login accounts for your restaurant buyers. Company & tax details are inside each card. 为餐厅客户创建登录账号，公司税务资料收在每张卡片里。"
                 action={
                   <button type="button" onClick={addCustomer} className="ff-button ff-button-primary h-11">
                     <Plus className="h-4 w-4" />
@@ -606,7 +785,6 @@ export default function AdminPage() {
                   </button>
                 }
               >
-                {customerNotice && <p className="mb-4 border border-[#ddd7cc] bg-[#f7f2e8] p-3 text-sm font-bold text-[#07586b]">{customerNotice}</p>}
                 <div className="grid gap-4">
                   {customers.map((customer) => (
                     <div key={customer.id} className="border border-[#ddd7cc] bg-white p-4 sm:p-5">
@@ -624,9 +802,9 @@ export default function AdminPage() {
                           >
                             {customer.loginEnabled ? "Account Active" : creatingCustomerId === customer.id ? "Creating..." : "Create Login Account"}
                           </button>
-                          <button type="button" onClick={() => saveCustomer(customer)} className="ff-button ff-button-outline h-11 bg-white">
+                          <AsyncButton onRun={() => saveCustomer(customer)} className="ff-button ff-button-outline h-11 bg-white">
                             Save Details
-                          </button>
+                          </AsyncButton>
                         </div>
                       </div>
 
@@ -649,9 +827,12 @@ export default function AdminPage() {
                         </label>
                       </div>
 
-                      <div className="mt-6 border-t border-[#eee7da] pt-5">
-                        <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">Malaysia company & tax details</p>
-                        <div className="mt-4 grid gap-4 md:grid-cols-3">
+                      <details className="group mt-5 border border-dashed border-[#ddd7cc]">
+                        <summary className="flex cursor-pointer items-center justify-between gap-3 p-4 text-sm font-black text-slate-600">
+                          <span>Company & tax details 公司与税务资料</span>
+                          <span className="text-xs font-bold text-slate-400 group-open:hidden">SSM · TIN · SST · E-invoice · Billing</span>
+                        </summary>
+                        <div className="grid gap-4 border-t border-[#eee7da] p-4 md:grid-cols-3">
                           <CustomerField label="SSM / Company No." value={customer.companyRegistrationNo || ""} onChange={(value) => updateCustomer(customer.id, { companyRegistrationNo: value })} />
                           <CustomerField label="TIN / Tax code" value={customer.taxIdentificationNo || ""} onChange={(value) => updateCustomer(customer.id, { taxIdentificationNo: value })} />
                           <CustomerField label="SST Registration No." value={customer.sstRegistrationNo || ""} onChange={(value) => updateCustomer(customer.id, { sstRegistrationNo: value })} />
@@ -662,11 +843,11 @@ export default function AdminPage() {
                           <CustomerField label="Billing state" value={customer.billingState || ""} onChange={(value) => updateCustomer(customer.id, { billingState: value })} />
                           <CustomerField label="Billing country" value={customer.billingCountry || "Malaysia"} onChange={(value) => updateCustomer(customer.id, { billingCountry: value })} />
                         </div>
-                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <div className="grid gap-4 p-4 pt-0 md:grid-cols-2">
                           <CustomerField label="Delivery address" value={customer.address} onChange={(value) => updateCustomer(customer.id, { address: value })} multiline />
                           <CustomerField label="Billing address" value={customer.billingAddress || ""} onChange={(value) => updateCustomer(customer.id, { billingAddress: value })} multiline />
                         </div>
-                      </div>
+                      </details>
                     </div>
                   ))}
                 </div>
@@ -676,26 +857,25 @@ export default function AdminPage() {
             {tab === "pricing" && (
               <Panel
                 title="Pricing"
-                description={`Quick price editor for ${filteredProducts.length} filtered products. Upload CSV columns: sku, slug or name, plus publicPrice and restaurantPrice.`}
+                description={`Quick price editor 快速改价 (${filteredProducts.length} products). CSV upload needs: sku or name, publicPrice, restaurantPrice.`}
                 action={
                   <div className="flex flex-wrap gap-2">
                     <button type="button" onClick={downloadFilteredPriceCsv} className="ff-button ff-button-outline h-11 bg-white">
                       <Download className="h-4 w-4" />
                       Download CSV
                     </button>
-                    <button type="button" onClick={saveFilteredPrices} className="ff-button ff-button-outline h-11 bg-white">
+                    <AsyncButton onRun={saveFilteredPrices} busyLabel="Saving..." className="ff-button ff-button-outline h-11 bg-white">
                       <Save className="h-4 w-4" />
                       Save Filtered Prices
-                    </button>
-                    <label className="ff-button ff-button-primary h-11 cursor-pointer">
+                    </AsyncButton>
+                    <label className={`ff-button ff-button-primary h-11 cursor-pointer ${uploadingCsv ? "pointer-events-none opacity-60" : ""}`}>
                       <Upload className="h-4 w-4" />
-                      Upload CSV
-                      <input type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => uploadPriceCsv(event.target.files?.[0])} />
+                      {uploadingCsv ? "Uploading..." : "Upload CSV"}
+                      <input type="file" accept=".csv,text/csv" className="hidden" disabled={uploadingCsv} onChange={(event) => uploadPriceCsv(event.target.files?.[0])} />
                     </label>
                   </div>
                 }
               >
-                {priceNotice && <p className="mb-4 border border-[#ddd7cc] bg-[#f7f2e8] p-3 text-sm font-bold text-[#07586b]">{priceNotice}</p>}
                 <ProductFilters
                   categories={managedCategories}
                   categoryFilter={productCategoryFilter}
@@ -721,9 +901,9 @@ export default function AdminPage() {
                           <ProductQuickPrice label="Public" value={product.publicPrice} onChange={(value) => updateProduct(product.id, { publicPrice: value })} />
                           <ProductQuickPrice label="Restaurant" value={product.restaurantPrice} onChange={(value) => updateProduct(product.id, { restaurantPrice: value })} />
                         </div>
-                        <button type="button" onClick={() => saveProduct(product)} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-3 text-xs">
+                        <AsyncButton onRun={() => saveProduct(product)} dirty={dirtyProducts.has(product.id)} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-3 text-xs">
                           Save Row
-                        </button>
+                        </AsyncButton>
                       </div>
                     );
                   })}
@@ -733,7 +913,7 @@ export default function AdminPage() {
             )}
 
             {tab === "settings" && (
-              <Panel title="Contact and business settings" description="Business settings used across the public site and checkout messages.">
+              <Panel title="Business settings" description="Contact info shown on the website and in WhatsApp checkout messages. 网站和 WhatsApp 下单信息里显示的联系资料。">
                 <div className="grid gap-4 md:grid-cols-2">
                   {Object.entries(settings).map(([key, value]) => (
                     <label key={key} className="block">
@@ -742,15 +922,65 @@ export default function AdminPage() {
                     </label>
                   ))}
                 </div>
-                <button type="button" onClick={saveSettings} className="ff-button ff-button-primary mt-6">
+                <AsyncButton onRun={saveSettings} className="ff-button ff-button-primary mt-6">
                   <Save className="h-4 w-4" />
                   Save Settings
-                </button>
+                </AsyncButton>
               </Panel>
             )}
           </section>
         </div>
       </div>
+      {drawerProduct && (
+        <div className="fixed inset-0 z-[90]">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setDrawerProductId(null)} />
+          <aside className="absolute inset-y-0 right-0 flex w-full max-w-3xl flex-col bg-white shadow-2xl">
+            <header className="flex items-center justify-between gap-3 border-b border-[#ddd7cc] bg-[#f7f2e8] px-5 py-4">
+              <div className="min-w-0">
+                <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{drawerProduct.sku || "Product"}</p>
+                <h2 className="display-serif truncate text-2xl font-medium text-slate-950">{drawerProduct.name.en}</h2>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                {dirtyProducts.has(drawerProduct.id) && <span className="bg-amber-100 px-2 py-1 text-xs font-black uppercase text-amber-700">Unsaved</span>}
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const deleted = await deleteProduct(drawerProduct);
+                    if (deleted) setDrawerProductId(null);
+                  }}
+                  className="inline-flex h-10 w-10 items-center justify-center border border-red-200 bg-white text-red-700 hover:bg-red-50"
+                  aria-label={`Delete ${drawerProduct.name.en}`}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                <button type="button" onClick={() => setDrawerProductId(null)} className="inline-flex h-10 w-10 items-center justify-center border border-[#ddd7cc] bg-white hover:bg-[#f7f2e8]" aria-label="Close editor">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </header>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <ProductEditor
+                categories={managedCategories}
+                product={drawerProduct}
+                productCategory={categoryLookup.get(drawerProduct.categorySlug || drawerProduct.categoryId)}
+                onProductChange={(patch) => updateProduct(drawerProduct.id, patch)}
+                onSave={() => saveProduct(drawerProduct)}
+                dirty={dirtyProducts.has(drawerProduct.id)}
+              />
+            </div>
+          </aside>
+        </div>
+      )}
+      {toast && (
+        <div
+          role="status"
+          className={`fixed bottom-6 right-6 z-[100] max-w-sm border p-4 text-sm font-bold shadow-2xl ${
+            toast.tone === "ok" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-red-300 bg-red-50 text-red-700"
+          }`}
+        >
+          {toast.text}
+        </div>
+      )}
     </div>
   );
 }
@@ -846,133 +1076,172 @@ function ProductQuickPrice({ label, onChange, value }: { label: string; onChange
 
 function ProductEditor({
   categories,
+  dirty = false,
   onProductChange,
   onSave,
   product,
   productCategory,
 }: {
   categories: Category[];
+  dirty?: boolean;
   onProductChange: (patch: Partial<Product>) => void;
-  onSave: () => void;
+  onSave: () => Promise<boolean>;
   product: Product;
   productCategory?: Category;
 }) {
   const selectedCategory = productCategory?.slug || product.categorySlug || product.categoryId;
 
   return (
-    <div className="border-t border-[#eee7da] bg-white p-4 sm:p-5">
-      <div className="grid gap-5 xl:grid-cols-[170px_1fr]">
-        <div className="min-w-0">
-          <div className="relative aspect-square overflow-hidden bg-[#f7f2e8]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={product.image} alt={product.name.en} className="h-full w-full object-cover" />
-          </div>
-          <label className="mt-3 inline-flex h-10 w-full cursor-pointer items-center justify-center border border-[#ddd7cc] text-xs font-black text-[#07586b] hover:bg-[#f7f2e8]">
-            <Upload className="mr-2 h-4 w-4" />
-            Upload image
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(event) =>
-                handleImageFile(event.currentTarget.files?.[0], (image, path) =>
-                  onProductChange({ image, imageStoragePath: path, gallery: [image] }),
-                  "products",
-                )
-              }
-            />
-          </label>
-        </div>
-
-        <div className="min-w-0 space-y-5">
-          <div className="flex flex-col justify-between gap-4 border-b border-[#eee7da] pb-4 md:flex-row md:items-start">
-            <div className="min-w-0">
-              <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{product.sku}</p>
-              <h3 className="display-serif mt-1 break-words text-2xl font-medium text-slate-950">{product.name.en}</h3>
+    <div className="flex min-h-full flex-col">
+      <div className="flex-1 space-y-6 p-4 pb-6 sm:p-6">
+        <section className="grid gap-5 sm:grid-cols-[140px_1fr]">
+          <div className="min-w-0">
+            <div className="relative mx-auto aspect-square max-w-[200px] overflow-hidden bg-[#f7f2e8] sm:mx-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={product.image} alt={product.name.en} className="h-full w-full object-cover" />
             </div>
-            <button type="button" onClick={onSave} className="ff-button ff-button-primary h-11 min-w-0 px-5">
-              Save Product
-            </button>
+            <label className="mt-3 inline-flex h-11 w-full cursor-pointer items-center justify-center border border-[#ddd7cc] text-xs font-black text-[#07586b] hover:bg-[#f7f2e8]">
+              <Upload className="mr-2 h-4 w-4" />
+              Upload photo 上传图片
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(event) =>
+                  handleImageFile(event.currentTarget.files?.[0], (image, path) =>
+                    onProductChange({ image, imageStoragePath: path, gallery: [image] }),
+                    "products",
+                  )
+                }
+              />
+            </label>
           </div>
+          <div className="grid content-start gap-4">
+            <ProductField label="Product name (English)" value={product.name.en} onChange={(value) => onProductChange({ name: { ...product.name, en: value } })} />
+            <ProductField label="产品名 (中文)" value={product.name.zh} onChange={(value) => onProductChange({ name: { ...product.name, zh: value } })} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="admin-label">Category 分类</span>
+                <select value={selectedCategory} onChange={(event) => onProductChange({ categoryId: event.target.value, categorySlug: event.target.value })} className="admin-input">
+                  {categories.map((category) => (
+                    <option key={category.id} value={category.slug}>
+                      {category.name.en}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="admin-label">Stock 库存</span>
+                <select value={product.stockStatus} onChange={(event) => onProductChange({ stockStatus: event.target.value as Product["stockStatus"] })} className="admin-input">
+                  {stockStatuses.map((status) => (
+                    <option key={status}>{status}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
+        </section>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            <ProductField label="English name" value={product.name.en} onChange={(value) => onProductChange({ name: { ...product.name, en: value } })} />
-            <ProductField label="Chinese name" value={product.name.zh} onChange={(value) => onProductChange({ name: { ...product.name, zh: value } })} />
-            <ProductField label="SKU" value={product.sku} onChange={(value) => onProductChange({ sku: value })} />
+        <section className="border border-[#ddd7cc] bg-[#faf7f0] p-4">
+          <h4 className="text-sm font-black uppercase tracking-[0.1em] text-slate-500">Pricing 价格</h4>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <ProductField label="Retail price 零售价 (RM)" type="number" value={product.publicPrice === null ? "" : String(product.publicPrice)} onChange={(value) => onProductChange({ publicPrice: value === "" ? null : Number(value) })} />
+            <ProductField label="Restaurant price 餐厅价 (RM)" type="number" value={product.restaurantPrice === null ? "" : String(product.restaurantPrice)} onChange={(value) => onProductChange({ restaurantPrice: value === "" ? null : Number(value) })} />
+          </div>
+          <p className="mt-2 text-xs font-semibold text-slate-500">Leave blank to show &quot;WhatsApp Ask Price&quot; 留空则显示 WhatsApp 询价</p>
+        </section>
+
+        <section className="grid gap-2">
+          <Toggle
+            checked={product.active}
+            label="Active 上架"
+            hint="Show this product on the website 在网站上显示这个产品"
+            onChange={(checked) => onProductChange({ active: checked })}
+          />
+          <Toggle
+            checked={product.retailVisible}
+            label="Retail shop 零售商店"
+            hint="Public customers can see and buy it 散客可以看到并购买"
+            onChange={(checked) => onProductChange({ retailVisible: checked })}
+          />
+          <Toggle
+            checked={product.featured}
+            label="Featured 主打推荐"
+            hint="Show in the homepage featured section 显示在首页推荐区"
+            onChange={(checked) => onProductChange({ featured: checked })}
+          />
+        </section>
+
+        <details className="group border border-[#ddd7cc]" open={product.variants.length > 0}>
+          <summary className="flex cursor-pointer items-center justify-between gap-3 p-4 text-sm font-black text-slate-950">
+            <span>Specifications & prices 规格与价格 {product.variants.length > 0 ? `(${product.variants.length})` : ""}</span>
+            <span className="text-xs font-bold text-slate-400 group-open:hidden">Show 展开</span>
+          </summary>
+          <div className="space-y-3 border-t border-[#eee7da] p-4">
+            {product.variants.map((variant, index) => {
+              const updateVariant = (patch: Partial<ProductVariant>) => onProductChange({ variants: product.variants.map((item) => item.id === variant.id ? { ...item, ...patch } : item) });
+              return <div key={variant.id} className="grid gap-3 border border-[#ddd7cc] bg-[#f7f2e8] p-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_auto] md:items-end">
+                <ProductField label={`Specification ${index + 1}`} value={variant.specification} onChange={(value) => updateVariant({ specification: value })} />
+                <ProductField label="Retail" type="number" value={variant.retailPrice === null ? "" : String(variant.retailPrice)} onChange={(value) => updateVariant({ retailPrice: value === "" ? null : Number(value) })} />
+                <ProductField label="Promotion" type="number" value={variant.promotionPrice === null ? "" : String(variant.promotionPrice)} onChange={(value) => updateVariant({ promotionPrice: value === "" ? null : Number(value) })} />
+                <ProductField label="Restaurant" type="number" value={variant.restaurantPrice === null ? "" : String(variant.restaurantPrice)} onChange={(value) => updateVariant({ restaurantPrice: value === "" ? null : Number(value) })} />
+                <button type="button" onClick={() => onProductChange({ variants: product.variants.filter((item) => item.id !== variant.id) })} className="inline-flex h-11 w-11 items-center justify-center border border-red-200 bg-white text-red-700" aria-label={`Delete specification ${index + 1}`}><Trash2 className="h-4 w-4" /></button>
+              </div>;
+            })}
+            {product.variants.length === 0 && <p className="border border-dashed border-slate-300 p-4 text-sm font-semibold text-slate-500">No specifications. The main prices above are used. 没有规格时使用上面的价格。</p>}
+            <button type="button" onClick={() => {
+              const next: ProductVariant = { id: localId("local"), productId: product.id, variantKey: localId("admin"), code: "", specification: "New specification", priceUnit: "", retailPrice: null, promotionPrice: null, restaurantPrice: null, effectiveDate: "", source: "Admin", sourceRow: "", brandOrSection: "", active: true, sortOrder: product.variants.length };
+              onProductChange({ variants: [...product.variants, next] });
+            }} className="ff-button ff-button-outline h-10 w-full bg-white sm:w-auto"><Plus className="h-4 w-4" />Add specification 加规格</button>
+          </div>
+        </details>
+
+        <details className="group border border-[#ddd7cc]">
+          <summary className="flex cursor-pointer items-center justify-between gap-3 p-4 text-sm font-black text-slate-950">
+            <span>More details 更多资料</span>
+            <span className="text-xs font-bold text-slate-400 group-open:hidden">SKU · Packing · MOQ · Description</span>
+          </summary>
+          <div className="grid gap-4 border-t border-[#eee7da] p-4 sm:grid-cols-2">
+            <ProductField label="SKU 编号" value={product.sku} onChange={(value) => onProductChange({ sku: value })} />
+            <ProductField label="Weight 重量" value={product.weight} onChange={(value) => onProductChange({ weight: value })} />
+            <ProductField label="Packing (English)" value={product.packing.en} onChange={(value) => onProductChange({ packing: { ...product.packing, en: value } })} />
+            <ProductField label="包装 (中文)" value={product.packing.zh} onChange={(value) => onProductChange({ packing: { ...product.packing, zh: value } })} />
+            <ProductField label="MOQ (English)" value={product.moq.en} onChange={(value) => onProductChange({ moq: { ...product.moq, en: value } })} />
+            <ProductField label="最低订购量 (中文)" value={product.moq.zh} onChange={(value) => onProductChange({ moq: { ...product.moq, zh: value } })} />
+            <ProductField label="Description (English)" value={product.description.en} onChange={(value) => onProductChange({ description: { ...product.description, en: value } })} multiline />
+            <ProductField label="描述 (中文)" value={product.description.zh} onChange={(value) => onProductChange({ description: { ...product.description, zh: value } })} multiline />
+          </div>
+        </details>
+
+        <details className="group border border-dashed border-[#ddd7cc]">
+          <summary className="cursor-pointer p-4 text-sm font-black text-slate-500">Advanced (slug, image URL)</summary>
+          <div className="grid gap-4 border-t border-[#eee7da] p-4 sm:grid-cols-2">
             <ProductField label="Slug" value={product.slug} onChange={(value) => onProductChange({ slug: value })} />
-            <label className="block">
-              <span className="admin-label">Category</span>
-              <select value={selectedCategory} onChange={(event) => onProductChange({ categoryId: event.target.value, categorySlug: event.target.value })} className="admin-input">
-                {categories.map((category) => (
-                  <option key={category.id} value={category.slug}>
-                    {category.group?.en ? `${category.group.en} - ${category.name.en}` : category.name.en}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="admin-label">Stock status</span>
-              <select value={product.stockStatus} onChange={(event) => onProductChange({ stockStatus: event.target.value as Product["stockStatus"] })} className="admin-input">
-                {stockStatuses.map((status) => (
-                  <option key={status}>{status}</option>
-                ))}
-              </select>
-            </label>
-            <ProductField label="Public price (blank = Ask Price)" type="number" value={product.publicPrice === null ? "" : String(product.publicPrice)} onChange={(value) => onProductChange({ publicPrice: value === "" ? null : Number(value) })} />
-            <ProductField label="Restaurant price (blank = Ask Price)" type="number" value={product.restaurantPrice === null ? "" : String(product.restaurantPrice)} onChange={(value) => onProductChange({ restaurantPrice: value === "" ? null : Number(value) })} />
-            <ProductField label="Weight" value={product.weight} onChange={(value) => onProductChange({ weight: value })} />
-            <ProductField label="Packing EN" value={product.packing.en} onChange={(value) => onProductChange({ packing: { ...product.packing, en: value } })} />
-            <ProductField label="Packing 中文" value={product.packing.zh} onChange={(value) => onProductChange({ packing: { ...product.packing, zh: value } })} />
-            <ProductField label="MOQ EN" value={product.moq.en} onChange={(value) => onProductChange({ moq: { ...product.moq, en: value } })} />
-            <ProductField label="MOQ 中文" value={product.moq.zh} onChange={(value) => onProductChange({ moq: { ...product.moq, zh: value } })} />
-            <ProductField label="Image URL" value={product.image} onChange={(value) => onProductChange({ image: value })} className="md:col-span-2" />
+            <ProductField label="Image URL" value={product.image} onChange={(value) => onProductChange({ image: value })} />
           </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <ProductField label="Description EN" value={product.description.en} onChange={(value) => onProductChange({ description: { ...product.description, en: value } })} multiline />
-            <ProductField label="Description 中文" value={product.description.zh} onChange={(value) => onProductChange({ description: { ...product.description, zh: value } })} multiline />
-          </div>
-
-          <div className="border-t border-[#eee7da] pt-5">
-            <div className="flex items-center justify-between gap-3">
-              <div><h4 className="font-black text-slate-950">Specifications & prices</h4><p className="mt-1 text-xs font-semibold text-slate-500">Leave retail or restaurant price blank to use WhatsApp Ask Price for that buyer type.</p></div>
-              <button type="button" onClick={() => {
-                const next: ProductVariant = { id: `local-${Date.now()}`, productId: product.id, variantKey: `admin-${Date.now()}`, code: "", specification: "New specification", priceUnit: "", retailPrice: null, promotionPrice: null, restaurantPrice: null, effectiveDate: "", source: "Admin", sourceRow: "", brandOrSection: "", active: true, sortOrder: product.variants.length };
-                onProductChange({ variants: [...product.variants, next] });
-              }} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-3"><Plus className="h-4 w-4" />Add specification</button>
-            </div>
-            <div className="mt-4 space-y-3">
-              {product.variants.map((variant, index) => {
-                const updateVariant = (patch: Partial<ProductVariant>) => onProductChange({ variants: product.variants.map((item) => item.id === variant.id ? { ...item, ...patch } : item) });
-                return <div key={variant.id} className="grid gap-3 border border-[#ddd7cc] bg-[#f7f2e8] p-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_auto] md:items-end">
-                  <ProductField label={`Specification ${index + 1}`} value={variant.specification} onChange={(value) => updateVariant({ specification: value })} />
-                  <ProductField label="Retail" type="number" value={variant.retailPrice === null ? "" : String(variant.retailPrice)} onChange={(value) => updateVariant({ retailPrice: value === "" ? null : Number(value) })} />
-                  <ProductField label="Promotion" type="number" value={variant.promotionPrice === null ? "" : String(variant.promotionPrice)} onChange={(value) => updateVariant({ promotionPrice: value === "" ? null : Number(value) })} />
-                  <ProductField label="Restaurant" type="number" value={variant.restaurantPrice === null ? "" : String(variant.restaurantPrice)} onChange={(value) => updateVariant({ restaurantPrice: value === "" ? null : Number(value) })} />
-                  <button type="button" onClick={() => onProductChange({ variants: product.variants.filter((item) => item.id !== variant.id) })} className="inline-flex h-11 w-11 items-center justify-center border border-red-200 bg-white text-red-700" aria-label={`Delete specification ${index + 1}`}><Trash2 className="h-4 w-4" /></button>
-                </div>;
-              })}
-              {product.variants.length === 0 && <p className="border border-dashed border-slate-300 p-4 text-sm font-semibold text-slate-500">No specifications. The main product prices above are used.</p>}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-5 border-t border-[#eee7da] pt-4">
-            <label className="flex items-center gap-2 text-sm font-black text-slate-700">
-              <input type="checkbox" checked={product.retailVisible} onChange={(event) => onProductChange({ retailVisible: event.target.checked })} />
-              Visible in retail shop
-            </label>
-            <label className="flex items-center gap-2 text-sm font-black text-slate-700">
-              <input type="checkbox" checked={product.featured} onChange={(event) => onProductChange({ featured: event.target.checked })} />
-              Featured product
-            </label>
-            <label className="flex items-center gap-2 text-sm font-black text-slate-700">
-              <input type="checkbox" checked={product.active} onChange={(event) => onProductChange({ active: event.target.checked })} />
-              Active on website
-            </label>
-          </div>
-        </div>
+        </details>
       </div>
+
+      <footer className="sticky bottom-0 z-10 flex items-center justify-between gap-3 border-t border-[#ddd7cc] bg-white p-4">
+        <span className={`text-xs font-bold ${dirty ? "text-amber-600" : "text-slate-400"}`}>{dirty ? "Unsaved changes 有未保存的改动" : "All changes saved 已保存"}</span>
+        <AsyncButton onRun={onSave} dirty={dirty} className="ff-button ff-button-primary h-12 min-w-0 px-6">
+          Save 保存
+        </AsyncButton>
+      </footer>
     </div>
+  );
+}
+
+function Toggle({ checked, hint, label, onChange }: { checked: boolean; hint?: string; label: string; onChange: (checked: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-4 border border-[#ddd7cc] bg-white p-4">
+      <span className="min-w-0">
+        <span className="block text-sm font-black text-slate-950">{label}</span>
+        {hint && <span className="mt-0.5 block text-xs font-semibold text-slate-500">{hint}</span>}
+      </span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="peer sr-only" />
+      <span className="relative h-7 w-12 shrink-0 rounded-full bg-slate-300 transition-colors after:absolute after:left-1 after:top-1 after:h-5 after:w-5 after:rounded-full after:bg-white after:shadow after:transition-transform peer-checked:bg-emerald-500 peer-checked:after:translate-x-5" />
+    </label>
   );
 }
 
@@ -1092,6 +1361,59 @@ function CustomerField({
       )}
     </label>
   );
+}
+
+function AsyncButton({
+  busyLabel = "Saving...",
+  children,
+  className = "",
+  dirty = false,
+  doneLabel = "Saved",
+  onRun,
+}: {
+  busyLabel?: string;
+  children: React.ReactNode;
+  className?: string;
+  dirty?: boolean;
+  doneLabel?: string;
+  onRun: () => Promise<boolean>;
+}) {
+  const [state, setState] = useState<"idle" | "busy" | "done">("idle");
+
+  async function handleClick() {
+    if (state === "busy") return;
+    setState("busy");
+    const ok = await onRun();
+    if (ok) {
+      setState("done");
+      window.setTimeout(() => setState("idle"), 1600);
+    } else {
+      setState("idle");
+    }
+  }
+
+  const stateClass =
+    state === "done"
+      ? "!border-emerald-600 !bg-emerald-600 !text-white"
+      : dirty && state === "idle"
+        ? "!border-amber-500 !bg-amber-500 !text-white"
+        : "";
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={state === "busy"}
+      title={dirty && state === "idle" ? "Unsaved changes" : undefined}
+      className={`${className} ${stateClass} disabled:cursor-wait disabled:opacity-60`}
+    >
+      {state === "busy" ? busyLabel : state === "done" ? (<><Check className="h-4 w-4" />{doneLabel}</>) : children}
+    </button>
+  );
+}
+
+function localId(prefix: string) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
 function csvCell(value: string | number | boolean | null | undefined) {
