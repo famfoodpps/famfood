@@ -40,9 +40,9 @@ export async function getBearerProfile(request: Request, client: SupabaseClient)
 
 export async function assertRole(request: Request, roles: string[]) {
   const client = createAdminSupabase();
-  if (!client) return { client: null, profile: null, ok: true };
+  if (!client) return { client: null, profile: null, ok: false, configured: false };
 
   const profile = await getBearerProfile(request, client);
   const ok = Boolean(profile && roles.includes(profile.role));
-  return { client, profile, ok };
+  return { client, profile, ok, configured: true };
 }

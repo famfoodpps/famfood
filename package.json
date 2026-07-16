@@ -6,7 +6,9 @@
     "dev": "next dev --webpack",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:vault": "node --env-file=.env.local scripts/seed-catalog-from-vault.mjs --replace-storage",
+    "audit:public-assets": "node scripts/audit-public-assets.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.0",

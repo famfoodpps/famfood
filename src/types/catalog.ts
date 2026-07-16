@@ -22,6 +22,7 @@ export type Category = {
   name: LocalizedText;
   description: LocalizedText;
   image: string;
+  imageStoragePath?: string;
   group: LocalizedText;
   classificationKeywords: string[];
   sortOrder: number;
@@ -42,11 +43,34 @@ export type Product = {
   packing: LocalizedText;
   weight: string;
   moq: LocalizedText;
-  publicPrice: number;
-  restaurantPrice: number;
+  publicPrice: number | null;
+  restaurantPrice: number | null;
+  variants: ProductVariant[];
+  sourceStatus?: "formal_catalog" | "wholesale_inquiry" | string;
+  sourceCategory?: string;
+  imageStoragePath?: string;
   stockStatus: StockStatus;
   featured: boolean;
   active: boolean;
+};
+
+export type ProductVariant = {
+  id: string;
+  productId: string;
+  variantKey: string;
+  code: string;
+  specification: string;
+  priceUnit: string;
+  retailPrice: number | null;
+  promotionPrice: number | null;
+  restaurantPrice: number | null;
+  effectiveDate: string;
+  source: string;
+  sourcePage?: number;
+  sourceRow: string;
+  brandOrSection: string;
+  active: boolean;
+  sortOrder: number;
 };
 
 export type RestaurantCustomer = {
@@ -118,11 +142,13 @@ export type BusinessSettings = {
 
 export type CartItem = {
   productId: string;
+  variantId?: string;
   quantity: number;
 };
 
 export type CartLine = CartItem & {
   product: Product;
+  variant?: ProductVariant;
   unitPrice: number;
   lineTotal: number;
 };

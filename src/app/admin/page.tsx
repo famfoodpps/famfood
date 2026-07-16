@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Boxes, Building2, ChevronDown, ClipboardList, Download, LayoutDashboard, LogOut, Plus, Save, Search, Settings, Tags, Upload, Users } from "lucide-react";
+import { Boxes, Building2, ChevronDown, ClipboardList, Download, LayoutDashboard, LogOut, Plus, Save, Search, Settings, Tags, Trash2, Upload, Users } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
-import { businessSettings, categories, demoOrders, formatCurrency, orderStatuses, products, restaurantCustomers } from "@/data/catalog";
-import type { BusinessSettings, Category, Order, OrderStatus, Product, RestaurantCustomer } from "@/types/catalog";
+import { businessSettings, formatCurrency, orderStatuses } from "@/data/catalog";
+import type { BusinessSettings, Category, Order, OrderStatus, Product, ProductVariant, RestaurantCustomer } from "@/types/catalog";
 
 type AdminTab = "dashboard" | "products" | "categories" | "orders" | "customers" | "pricing" | "settings";
 
@@ -24,10 +24,10 @@ const stockStatuses = ["In Stock", "Limited", "Pre-order", "Out of Stock"] satis
 export default function AdminPage() {
   const router = useRouter();
   const [tab, setTab] = useState<AdminTab>("dashboard");
-  const [managedProducts, setManagedProducts] = useState<Product[]>(products);
-  const [managedCategories, setManagedCategories] = useState<Category[]>(categories);
-  const [orders, setOrders] = useState<Order[]>(demoOrders);
-  const [customers, setCustomers] = useState<RestaurantCustomer[]>(restaurantCustomers);
+  const [managedProducts, setManagedProducts] = useState<Product[]>([]);
+  const [managedCategories, setManagedCategories] = useState<Category[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [customers, setCustomers] = useState<RestaurantCustomer[]>([]);
   const [settings, setSettings] = useState<BusinessSettings>(businessSettings);
   const [creatingCustomerId, setCreatingCustomerId] = useState<string | null>(null);
   const [customerNotice, setCustomerNotice] = useState("");
@@ -38,28 +38,20 @@ export default function AdminPage() {
   const [productCategoryFilter, setProductCategoryFilter] = useState("all");
   const [productStatusFilter, setProductStatusFilter] = useState("all");
   const [productCatalogFilter, setProductCatalogFilter] = useState("all");
+  const [productPage, setProductPage] = useState(1);
+  const [productTotalPages, setProductTotalPages] = useState(1);
+  const [productTotal, setProductTotal] = useState(0);
+  const [activeProductTotal, setActiveProductTotal] = useState(0);
+  const [featuredProductTotal, setFeaturedProductTotal] = useState(0);
 
   useEffect(() => {
     queueMicrotask(() => {
       const session = window.localStorage.getItem("famfood-session");
       if (!session?.includes("admin")) router.push("/restaurant/login");
-      setManagedProducts(readStore("famfood-admin-products", products));
-      setManagedCategories(readStore("famfood-admin-categories", categories));
-      setOrders(readStore("famfood-admin-orders", demoOrders));
-      setCustomers(readStore("famfood-admin-customers", restaurantCustomers));
-      setSettings(readStore("famfood-admin-settings", businessSettings));
     });
   }, [router]);
 
-  useEffect(() => saveStore("famfood-admin-products", managedProducts), [managedProducts]);
-  useEffect(() => saveStore("famfood-admin-categories", managedCategories), [managedCategories]);
-  useEffect(() => saveStore("famfood-admin-orders", orders), [orders]);
-  useEffect(() => saveStore("famfood-admin-customers", customers), [customers]);
-  useEffect(() => saveStore("famfood-admin-settings", settings), [settings]);
-
-  const activeProducts = managedProducts.filter((product) => product.active);
   const pendingOrders = orders.filter((order) => order.status === "Pending");
-  const featured = managedProducts.filter((product) => product.featured);
   const categoryLookup = useMemo(() => {
     const map = new Map<string, Category>();
     managedCategories.forEach((category) => {
@@ -108,16 +100,23 @@ export default function AdminPage() {
   }
 
   function addProduct() {
-    const base = managedProducts[0];
     const next: Product = {
-      ...base,
-      id: `p-${Date.now()}`,
+      id: `local-${Date.now()}`,
       slug: `new-product-${Date.now()}`,
       sku: `NEW-${managedProducts.length + 1}`,
+      categoryId: managedCategories[0]?.id || "",
+      categorySlug: managedCategories[0]?.slug,
       name: { en: "New Product", zh: "新产品" },
       description: { en: "Product description", zh: "产品描述" },
-      publicPrice: 0,
-      restaurantPrice: 0,
+      image: "/product-placeholder.svg",
+      gallery: [],
+      packing: { en: "", zh: "" },
+      weight: "",
+      moq: { en: "", zh: "" },
+      publicPrice: null,
+      restaurantPrice: null,
+      variants: [],
+      stockStatus: "In Stock",
       featured: false,
       active: true,
     };
@@ -175,13 +174,19 @@ export default function AdminPage() {
   async function loadAdminData() {
     try {
       const [productPayload, categoryPayload, orderPayload, customerPayload, settingsPayload] = await Promise.all([
-        adminFetch("/api/admin/products").then((response) => response.json()),
+        adminFetch("/api/admin/products?page=1&pageSize=30").then((response) => response.json()),
         adminFetch("/api/admin/categories").then((response) => response.json()),
         adminFetch("/api/admin/orders").then((response) => response.json()),
         adminFetch("/api/admin/customers").then((response) => response.json()),
         adminFetch("/api/admin/settings").then((response) => response.json()),
       ]);
-      if (Array.isArray(productPayload.products)) setManagedProducts(productPayload.products);
+      if (Array.isArray(productPayload.products)) {
+        setManagedProducts(productPayload.products);
+        setProductTotalPages(productPayload.totalPages || 1);
+        setProductTotal(productPayload.total || 0);
+        setActiveProductTotal(productPayload.activeTotal || 0);
+        setFeaturedProductTotal(productPayload.featuredTotal || 0);
+      }
       if (Array.isArray(categoryPayload.categories)) setManagedCategories(categoryPayload.categories);
       if (Array.isArray(orderPayload.orders)) setOrders(orderPayload.orders);
       if (Array.isArray(customerPayload.customers)) setCustomers(customerPayload.customers);
@@ -190,6 +195,24 @@ export default function AdminPage() {
       setAdminNotice(caught instanceof Error ? caught.message : "Unable to load admin data.");
     }
   }
+
+  const loadAdminProducts = useCallback(async (page: number) => {
+    const params = new URLSearchParams({ page: String(page), pageSize: "30" });
+    if (productSearch.trim()) params.set("q", productSearch.trim());
+    if (productCategoryFilter !== "all") params.set("category", productCategoryFilter);
+    if (productStatusFilter === "active" || productStatusFilter === "inactive") params.set("status", productStatusFilter);
+    try {
+      const payload = await adminFetch(`/api/admin/products?${params}`).then((response) => response.json());
+      setManagedProducts(Array.isArray(payload.products) ? payload.products : []);
+      setProductTotalPages(payload.totalPages || 1);
+      setProductTotal(payload.total || 0);
+      setActiveProductTotal(payload.activeTotal || 0);
+      setFeaturedProductTotal(payload.featuredTotal || 0);
+      setProductPage(payload.page || page);
+    } catch (caught) {
+      setAdminNotice(caught instanceof Error ? caught.message : "Unable to load products.");
+    }
+  }, [productCategoryFilter, productSearch, productStatusFilter]);
 
   async function saveProduct(product: Product) {
     try {
@@ -259,12 +282,54 @@ export default function AdminPage() {
 
   async function saveCategory(category: Category) {
     try {
-      const response = await adminFetch("/api/admin/categories", { method: "PATCH", body: JSON.stringify(category) });
+      const response = await adminFetch("/api/admin/categories", { method: category.id.startsWith("local-") ? "POST" : "PATCH", body: JSON.stringify(category) });
       const payload = await response.json();
       if (payload.category) updateCategory(category.id, payload.category);
       setAdminNotice(`Saved category: ${category.name.en}`);
     } catch (caught) {
       setAdminNotice(caught instanceof Error ? caught.message : "Unable to save category.");
+    }
+  }
+
+  function addCategory() {
+    setManagedCategories((current) => [{
+      id: `local-${Date.now()}`,
+      slug: `new-category-${Date.now()}`,
+      name: { en: "New Category", zh: "新分类" },
+      description: { en: "", zh: "" },
+      image: "/product-placeholder.svg",
+      group: { en: "Products", zh: "产品" },
+      classificationKeywords: [],
+      sortOrder: current.length + 1,
+      active: true,
+    }, ...current]);
+  }
+
+  async function deleteCategory(category: Category) {
+    if (category.id.startsWith("local-")) {
+      setManagedCategories((current) => current.filter((item) => item.id !== category.id));
+      return;
+    }
+    try {
+      await adminFetch(`/api/admin/categories?id=${encodeURIComponent(category.id)}`, { method: "DELETE" });
+      setManagedCategories((current) => current.filter((item) => item.id !== category.id));
+      setAdminNotice(`Deleted category: ${category.name.en}`);
+    } catch (caught) {
+      setAdminNotice(caught instanceof Error ? caught.message : "Unable to delete category.");
+    }
+  }
+
+  async function deleteProduct(product: Product) {
+    if (product.id.startsWith("local-")) {
+      setManagedProducts((current) => current.filter((item) => item.id !== product.id));
+      return;
+    }
+    try {
+      await adminFetch(`/api/admin/products?id=${encodeURIComponent(product.id)}`, { method: "DELETE" });
+      setManagedProducts((current) => current.filter((item) => item.id !== product.id));
+      setAdminNotice(`Deleted product: ${product.name.en}`);
+    } catch (caught) {
+      setAdminNotice(caught instanceof Error ? caught.message : "Unable to delete product.");
     }
   }
 
@@ -298,26 +363,7 @@ export default function AdminPage() {
     try {
       const response = await adminFetch("/api/admin/products/prices", { method: "POST", body: formData });
       const payload = await response.json();
-      if (Array.isArray(payload.updates) && payload.source === "seed") {
-        setManagedProducts((current) =>
-          current.map((product) => {
-            const update = payload.updates.find(
-              (item: { sku?: string; slug?: string; name?: string }) =>
-                item.sku?.toLowerCase() === product.sku.toLowerCase() ||
-                item.slug?.toLowerCase() === product.slug.toLowerCase() ||
-                item.name?.toLowerCase() === product.name.en.toLowerCase(),
-            );
-            if (!update) return product;
-            return {
-              ...product,
-              publicPrice: typeof update.publicPrice === "number" ? update.publicPrice : product.publicPrice,
-              restaurantPrice: typeof update.restaurantPrice === "number" ? update.restaurantPrice : product.restaurantPrice,
-            };
-          }),
-        );
-      } else {
-        await loadAdminData();
-      }
+      await loadAdminData();
       setPriceNotice(`Price CSV processed. Updated ${payload.updated || 0}${payload.unmatched ? `, unmatched ${payload.unmatched}` : ""}.`);
     } catch (caught) {
       setPriceNotice(caught instanceof Error ? caught.message : "Unable to update prices.");
@@ -327,6 +373,11 @@ export default function AdminPage() {
   useEffect(() => {
     queueMicrotask(() => loadAdminData());
   }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => loadAdminProducts(1), 300);
+    return () => window.clearTimeout(timeout);
+  }, [loadAdminProducts]);
 
   return (
     <div className="min-h-screen bg-[#f7f2e8] pt-[104px]">
@@ -371,10 +422,10 @@ export default function AdminPage() {
 
             {tab === "dashboard" && (
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
-                <Metric label="Active Products" value={activeProducts.length.toString()} />
+                <Metric label="Active Products" value={activeProductTotal.toString()} />
                 <Metric label="Pending Orders" value={pendingOrders.length.toString()} />
                 <Metric label="Restaurants" value={customers.length.toString()} />
-                <Metric label="Featured" value={featured.length.toString()} />
+                <Metric label="Featured" value={featuredProductTotal.toString()} />
                 <Panel title="Latest orders" description="Status updates are reflected in restaurant order history when connected to Supabase.">
                   <OrdersTable orders={orders.slice(0, 6)} onStatusChange={updateOrderStatus} />
                 </Panel>
@@ -384,7 +435,7 @@ export default function AdminPage() {
             {tab === "products" && (
               <Panel
                 title="Manage products"
-                description={`Showing ${filteredProducts.length} of ${managedProducts.length} products. Search, filter, quick edit prices, then expand only the product you need.`}
+                description={`Showing ${filteredProducts.length} products on this page, ${productTotal} total. Search, filter, quick edit prices, then expand only the product you need.`}
                 action={
                   <button type="button" onClick={addProduct} className="ff-button ff-button-primary h-11">
                     <Plus className="h-4 w-4" />
@@ -430,6 +481,9 @@ export default function AdminPage() {
                                 <button type="button" onClick={() => saveProduct(product)} className="ff-button ff-button-primary h-10 min-w-0 px-4 text-xs">
                                   Save
                                 </button>
+                                <button type="button" onClick={() => deleteProduct(product)} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-3 text-xs text-red-700" aria-label={`Delete ${product.name.en}`}>
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
                                 <button type="button" onClick={() => setExpandedProductId(isExpanded ? null : product.id)} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-4 text-xs">
                                   {isExpanded ? "Close" : "Edit"}
                                   <ChevronDown className={`h-4 w-4 transition ${isExpanded ? "rotate-180" : ""}`} />
@@ -465,11 +519,16 @@ export default function AdminPage() {
                   })}
                   {filteredProducts.length === 0 && <div className="border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-bold text-slate-500">No products match the current filters.</div>}
                 </div>
+                <div className="mt-5 flex items-center justify-between gap-3 border-t border-[#eee7da] pt-4">
+                  <button type="button" disabled={productPage <= 1} onClick={() => loadAdminProducts(productPage - 1)} className="ff-button ff-button-outline h-10 bg-white disabled:opacity-40">Previous</button>
+                  <span className="text-sm font-black text-slate-600">Page {productPage} of {productTotalPages}</span>
+                  <button type="button" disabled={productPage >= productTotalPages} onClick={() => loadAdminProducts(productPage + 1)} className="ff-button ff-button-outline h-10 bg-white disabled:opacity-40">Next</button>
+                </div>
               </Panel>
             )}
 
             {tab === "categories" && (
-              <Panel title="Manage categories" description="Edit category names, groups, descriptions, active states and catalog images.">
+              <Panel title="Manage categories" description="Edit, sort or delete categories. A category with products cannot be deleted." action={<button type="button" onClick={addCategory} className="ff-button ff-button-primary h-11"><Plus className="h-4 w-4" />Add Category</button>}>
                 <div className="grid gap-4 md:grid-cols-2">
                   {managedCategories.map((category) => (
                     <div key={category.id} className="border border-[#ddd7cc] p-4 sm:p-5">
@@ -486,7 +545,7 @@ export default function AdminPage() {
                               type="file"
                               accept="image/*"
                               className="hidden"
-                              onChange={(event) => handleImageFile(event.currentTarget.files?.[0], (image) => updateCategory(category.id, { image }), "categories")}
+                              onChange={(event) => handleImageFile(event.currentTarget.files?.[0], (image, imageStoragePath) => updateCategory(category.id, { image, imageStoragePath }), "categories")}
                             />
                           </label>
                         </div>
@@ -494,6 +553,7 @@ export default function AdminPage() {
                         <input value={category.name.en} onChange={(event) => updateCategory(category.id, { name: { ...category.name, en: event.target.value } })} className="admin-input font-black" />
                         <input value={category.name.zh} onChange={(event) => updateCategory(category.id, { name: { ...category.name, zh: event.target.value } })} className="admin-input" />
                         <input value={category.slug} onChange={(event) => updateCategory(category.id, { slug: event.target.value })} className="admin-input text-xs" />
+                        <input type="number" value={category.sortOrder} onChange={(event) => updateCategory(category.id, { sortOrder: Number(event.target.value) || 0 })} className="admin-input" aria-label="Sort order" />
                         <input value={category.group?.en || ""} onChange={(event) => updateCategory(category.id, { group: { en: event.target.value, zh: category.group?.zh || "" } })} className="admin-input" />
                         <input value={category.group?.zh || ""} onChange={(event) => updateCategory(category.id, { group: { en: category.group?.en || "", zh: event.target.value } })} className="admin-input" />
                         <input value={category.image} onChange={(event) => updateCategory(category.id, { image: event.target.value })} className="admin-input text-xs" />
@@ -517,9 +577,10 @@ export default function AdminPage() {
                         <input type="checkbox" checked={category.active} onChange={(event) => updateCategory(category.id, { active: event.target.checked })} />
                         Active
                       </label>
-                      <button type="button" onClick={() => saveCategory(category)} className="ff-button ff-button-outline mt-4 h-11 min-w-0 bg-white px-4">
-                        Save Category
-                      </button>
+                      <div className="mt-4 flex gap-2">
+                        <button type="button" onClick={() => saveCategory(category)} className="ff-button ff-button-outline h-11 min-w-0 bg-white px-4">Save Category</button>
+                        <button type="button" onClick={() => deleteCategory(category)} className="ff-button ff-button-outline h-11 min-w-0 bg-white px-4 text-red-700"><Trash2 className="h-4 w-4" />Delete</button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -772,11 +833,11 @@ function ProductFilters({
   );
 }
 
-function ProductQuickPrice({ label, onChange, value }: { label: string; onChange: (value: number) => void; value: number }) {
+function ProductQuickPrice({ label, onChange, value }: { label: string; onChange: (value: number | null) => void; value: number | null }) {
   return (
     <label className="block">
       <span className="admin-label">{label}</span>
-      <input value={String(value)} onChange={(event) => onChange(Number(event.target.value))} type="number" className="admin-input h-10" />
+      <input value={value === null ? "" : String(value)} onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))} type="number" min="0" step="0.01" placeholder="Ask Price" className="admin-input h-10" />
     </label>
   );
 }
@@ -812,8 +873,9 @@ function ProductEditor({
               accept="image/*"
               className="hidden"
               onChange={(event) =>
-                handleImageFile(event.currentTarget.files?.[0], (image) =>
-                  onProductChange({ image, gallery: [image, ...(product.gallery || [])] }),
+                handleImageFile(event.currentTarget.files?.[0], (image, path) =>
+                  onProductChange({ image, imageStoragePath: path, gallery: [image] }),
+                  "products",
                 )
               }
             />
@@ -854,8 +916,8 @@ function ProductEditor({
                 ))}
               </select>
             </label>
-            <ProductField label="Public price" type="number" value={String(product.publicPrice)} onChange={(value) => onProductChange({ publicPrice: Number(value) })} />
-            <ProductField label="Restaurant price" type="number" value={String(product.restaurantPrice)} onChange={(value) => onProductChange({ restaurantPrice: Number(value) })} />
+            <ProductField label="Public price (blank = Ask Price)" type="number" value={product.publicPrice === null ? "" : String(product.publicPrice)} onChange={(value) => onProductChange({ publicPrice: value === "" ? null : Number(value) })} />
+            <ProductField label="Restaurant price (blank = Ask Price)" type="number" value={product.restaurantPrice === null ? "" : String(product.restaurantPrice)} onChange={(value) => onProductChange({ restaurantPrice: value === "" ? null : Number(value) })} />
             <ProductField label="Weight" value={product.weight} onChange={(value) => onProductChange({ weight: value })} />
             <ProductField label="Packing EN" value={product.packing.en} onChange={(value) => onProductChange({ packing: { ...product.packing, en: value } })} />
             <ProductField label="Packing 中文" value={product.packing.zh} onChange={(value) => onProductChange({ packing: { ...product.packing, zh: value } })} />
@@ -867,6 +929,29 @@ function ProductEditor({
           <div className="grid gap-4 md:grid-cols-2">
             <ProductField label="Description EN" value={product.description.en} onChange={(value) => onProductChange({ description: { ...product.description, en: value } })} multiline />
             <ProductField label="Description 中文" value={product.description.zh} onChange={(value) => onProductChange({ description: { ...product.description, zh: value } })} multiline />
+          </div>
+
+          <div className="border-t border-[#eee7da] pt-5">
+            <div className="flex items-center justify-between gap-3">
+              <div><h4 className="font-black text-slate-950">Specifications & prices</h4><p className="mt-1 text-xs font-semibold text-slate-500">Leave retail or restaurant price blank to use WhatsApp Ask Price for that buyer type.</p></div>
+              <button type="button" onClick={() => {
+                const next: ProductVariant = { id: `local-${Date.now()}`, productId: product.id, variantKey: `admin-${Date.now()}`, code: "", specification: "New specification", priceUnit: "", retailPrice: null, promotionPrice: null, restaurantPrice: null, effectiveDate: "", source: "Admin", sourceRow: "", brandOrSection: "", active: true, sortOrder: product.variants.length };
+                onProductChange({ variants: [...product.variants, next] });
+              }} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-3"><Plus className="h-4 w-4" />Add specification</button>
+            </div>
+            <div className="mt-4 space-y-3">
+              {product.variants.map((variant, index) => {
+                const updateVariant = (patch: Partial<ProductVariant>) => onProductChange({ variants: product.variants.map((item) => item.id === variant.id ? { ...item, ...patch } : item) });
+                return <div key={variant.id} className="grid gap-3 border border-[#ddd7cc] bg-[#f7f2e8] p-3 md:grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_auto] md:items-end">
+                  <ProductField label={`Specification ${index + 1}`} value={variant.specification} onChange={(value) => updateVariant({ specification: value })} />
+                  <ProductField label="Retail" type="number" value={variant.retailPrice === null ? "" : String(variant.retailPrice)} onChange={(value) => updateVariant({ retailPrice: value === "" ? null : Number(value) })} />
+                  <ProductField label="Promotion" type="number" value={variant.promotionPrice === null ? "" : String(variant.promotionPrice)} onChange={(value) => updateVariant({ promotionPrice: value === "" ? null : Number(value) })} />
+                  <ProductField label="Restaurant" type="number" value={variant.restaurantPrice === null ? "" : String(variant.restaurantPrice)} onChange={(value) => updateVariant({ restaurantPrice: value === "" ? null : Number(value) })} />
+                  <button type="button" onClick={() => onProductChange({ variants: product.variants.filter((item) => item.id !== variant.id) })} className="inline-flex h-11 w-11 items-center justify-center border border-red-200 bg-white text-red-700" aria-label={`Delete specification ${index + 1}`}><Trash2 className="h-4 w-4" /></button>
+                </div>;
+              })}
+              {product.variants.length === 0 && <p className="border border-dashed border-slate-300 p-4 text-sm font-semibold text-slate-500">No specifications. The main product prices above are used.</p>}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-5 border-t border-[#eee7da] pt-4">
@@ -1003,21 +1088,6 @@ function CustomerField({
   );
 }
 
-function readStore<T>(key: string, fallback: T): T {
-  try {
-    if (typeof window === "undefined") return fallback;
-    const stored = window.localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveStore<T>(key: string, value: T) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
-}
-
 function csvCell(value: string | number | boolean | null | undefined) {
   const text = String(value ?? "");
   if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
@@ -1039,8 +1109,16 @@ function adminFetch(input: string, init: RequestInit = {}) {
   });
 }
 
-async function handleImageFile(file: File | undefined, onImage: (image: string) => void, folder: "products" | "categories" = "products") {
+async function handleImageFile(file: File | undefined, onImage: (image: string, path?: string) => void, folder: "products" | "categories" = "products") {
   if (!file) return;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    window.alert("Please upload a JPG, PNG or WebP image.");
+    return;
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    window.alert("Image must be 5 MB or smaller.");
+    return;
+  }
   const formData = new FormData();
   formData.set("file", file);
   formData.set("folder", folder);
@@ -1048,15 +1126,10 @@ async function handleImageFile(file: File | undefined, onImage: (image: string) 
     const response = await adminFetch("/api/admin/upload", { method: "POST", body: formData });
     const payload = await response.json();
     if (payload.url) {
-      onImage(payload.url);
+      onImage(payload.url, payload.path);
       return;
     }
-  } catch {
-    // Fall back to inline preview when Supabase Storage is not configured yet.
+  } catch (caught) {
+    window.alert(caught instanceof Error ? caught.message : "Unable to upload image.");
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    if (typeof reader.result === "string") onImage(reader.result);
-  };
-  reader.readAsDataURL(file);
 }

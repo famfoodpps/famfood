@@ -5,8 +5,8 @@ type PriceUpdate = {
   sku?: string;
   slug?: string;
   name?: string;
-  publicPrice?: number;
-  restaurantPrice?: number;
+  publicPrice?: number | null;
+  restaurantPrice?: number | null;
 };
 
 type ProductPriceTarget = {
@@ -50,7 +50,8 @@ function parseCsv(text: string) {
 }
 
 function numberFrom(value: string | undefined) {
-  if (!value) return undefined;
+  if (value === undefined) return undefined;
+  if (!value.trim()) return null;
   const parsed = Number(value.replace(/RM/gi, "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(parsed) ? parsed : undefined;
 }
@@ -78,18 +79,16 @@ function updatesFromCsv(text: string): PriceUpdate[] {
 }
 
 export async function POST(request: Request) {
-  const { client, ok } = await assertRole(request, ["admin"]);
-  if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { client, ok, configured } = await assertRole(request, ["admin"]);
+  if (!configured) return NextResponse.json({ error: "Supabase admin connection is not configured." }, { status: 503 });
+  if (!ok || !client) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const formData = await request.formData();
   const file = formData.get("file");
+  if (file instanceof File && file.size > 2 * 1024 * 1024) return NextResponse.json({ error: "CSV must be 2 MB or smaller." }, { status: 413 });
   const csvText = file instanceof File ? await file.text() : String(formData.get("csv") || "");
   const updates = updatesFromCsv(csvText);
   if (updates.length === 0) return NextResponse.json({ error: "No valid price rows found." }, { status: 400 });
-
-  if (!client) {
-    return NextResponse.json({ updates, updated: updates.length, source: "seed" });
-  }
 
   const { data: productRows, error: readError } = await client.from("products").select("id, sku, slug, name_en");
   if (readError) return NextResponse.json({ error: readError.message }, { status: 500 });
@@ -109,7 +108,7 @@ export async function POST(request: Request) {
     .filter((item): item is { update: PriceUpdate; product: ProductPriceTarget } => Boolean(item.product));
 
   for (const item of matched) {
-    const patch: Record<string, number> = {};
+    const patch: Record<string, number | null> = {};
     if (item.update.publicPrice !== undefined) patch.public_price = item.update.publicPrice;
     if (item.update.restaurantPrice !== undefined) patch.restaurant_price = item.update.restaurantPrice;
     if (Object.keys(patch).length > 0) {

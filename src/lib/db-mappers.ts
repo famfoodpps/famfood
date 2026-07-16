@@ -1,10 +1,15 @@
-import type { BusinessSettings, Category, Order, Product, RestaurantCustomer } from "@/types/catalog";
+import type { BusinessSettings, Category, Order, Product, ProductVariant, RestaurantCustomer } from "@/types/catalog";
 
 type Row = Record<string, unknown>;
 
 const str = (value: unknown, fallback = "") => (typeof value === "string" ? value : fallback);
 const bool = (value: unknown, fallback = false) => (typeof value === "boolean" ? value : fallback);
 const num = (value: unknown, fallback = 0) => (typeof value === "number" ? value : Number(value ?? fallback) || fallback);
+const nullableNum = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 const strArray = (value: unknown) => (Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []);
 
 export function categoryFromRow(row: Row): Category {
@@ -14,6 +19,7 @@ export function categoryFromRow(row: Row): Category {
     name: { en: str(row.name_en), zh: str(row.name_zh) },
     description: { en: str(row.description_en), zh: str(row.description_zh) },
     image: str(row.image_url),
+    imageStoragePath: str(row.image_storage_path),
     group: { en: str(row.group_en), zh: str(row.group_zh) },
     classificationKeywords: strArray(row.classification_keywords),
     sortOrder: num(row.sort_order),
@@ -29,6 +35,7 @@ export function categoryToRow(category: Category) {
     description_en: category.description.en,
     description_zh: category.description.zh,
     image_url: category.image,
+    image_storage_path: category.imageStoragePath || null,
     group_en: category.group?.en || "",
     group_zh: category.group?.zh || "",
     classification_keywords: category.classificationKeywords || [],
@@ -39,6 +46,7 @@ export function categoryToRow(category: Category) {
 
 export function productFromRow(row: Row): Product {
   const category = row.categories as Row | null | undefined;
+  const variants = Array.isArray(row.product_variants) ? (row.product_variants as Row[]).map(productVariantFromRow) : [];
   return {
     id: str(row.id),
     slug: str(row.slug),
@@ -53,8 +61,12 @@ export function productFromRow(row: Row): Product {
     packing: { en: str(row.packing_en), zh: str(row.packing_zh) },
     weight: str(row.weight),
     moq: { en: str(row.moq_en), zh: str(row.moq_zh) },
-    publicPrice: num(row.public_price),
-    restaurantPrice: num(row.restaurant_price),
+    publicPrice: nullableNum(row.public_price),
+    restaurantPrice: nullableNum(row.restaurant_price),
+    variants,
+    sourceStatus: str(row.source_status),
+    sourceCategory: str(row.source_category),
+    imageStoragePath: str(row.image_storage_path),
     stockStatus: str(row.stock_status, "In Stock") as Product["stockStatus"],
     featured: bool(row.featured),
     active: bool(row.active, true),
@@ -76,11 +88,55 @@ export function productToRow(product: Product) {
     weight: product.weight,
     moq_en: product.moq.en,
     moq_zh: product.moq.zh,
-    public_price: product.publicPrice,
-    restaurant_price: product.restaurantPrice,
+    public_price: product.publicPrice ?? null,
+    restaurant_price: product.restaurantPrice ?? null,
+    source_status: product.sourceStatus || "formal_catalog",
+    source_category: product.sourceCategory || null,
+    image_storage_path: product.imageStoragePath || null,
     stock_status: product.stockStatus,
     featured: product.featured,
     active: product.active,
+  };
+}
+
+export function productVariantFromRow(row: Row): ProductVariant {
+  return {
+    id: str(row.id),
+    productId: str(row.product_id),
+    variantKey: str(row.variant_key),
+    code: str(row.code),
+    specification: str(row.specification),
+    priceUnit: str(row.price_unit),
+    retailPrice: nullableNum(row.retail_price),
+    promotionPrice: nullableNum(row.promotion_price),
+    restaurantPrice: nullableNum(row.restaurant_price),
+    effectiveDate: str(row.effective_date),
+    source: str(row.source),
+    sourcePage: nullableNum(row.source_page) ?? undefined,
+    sourceRow: str(row.source_row),
+    brandOrSection: str(row.brand_or_section),
+    active: bool(row.active, true),
+    sortOrder: num(row.sort_order),
+  };
+}
+
+export function productVariantToRow(variant: ProductVariant, productId: string) {
+  return {
+    product_id: productId,
+    variant_key: variant.variantKey,
+    code: variant.code || null,
+    specification: variant.specification,
+    price_unit: variant.priceUnit || null,
+    retail_price: variant.retailPrice ?? null,
+    promotion_price: variant.promotionPrice ?? null,
+    restaurant_price: variant.restaurantPrice ?? null,
+    effective_date: variant.effectiveDate || null,
+    source: variant.source || null,
+    source_page: variant.sourcePage ?? null,
+    source_row: variant.sourceRow || null,
+    brand_or_section: variant.brandOrSection || null,
+    active: variant.active,
+    sort_order: variant.sortOrder,
   };
 }
 

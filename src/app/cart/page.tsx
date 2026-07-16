@@ -14,6 +14,7 @@ export default function CartPage() {
   const { locale, pick } = useLanguage();
   const [submitting, setSubmitting] = useState(false);
   const [savedOrder, setSavedOrder] = useState("");
+  const [checkoutError, setCheckoutError] = useState("");
   const [details, setDetails] = useState<CheckoutDetails>({
     name: "",
     phone: "",
@@ -33,6 +34,7 @@ export default function CartPage() {
   async function checkout() {
     if (!canCheckout || submitting) return;
     setSubmitting(true);
+    setCheckoutError("");
     try {
       const response = await fetch("/api/orders", {
         method: "POST",
@@ -40,9 +42,12 @@ export default function CartPage() {
         body: JSON.stringify({ details, items: cart.items, channel: "Public" }),
       });
       const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to save order.");
       if (payload.order?.orderNumber) setSavedOrder(payload.order.orderNumber);
       window.open(buildWhatsAppOrderUrl(cart.lines, details, locale), "_blank", "noopener,noreferrer");
       cart.clear();
+    } catch (caught) {
+      setCheckoutError(caught instanceof Error ? caught.message : "Unable to save order.");
     } finally {
       setSubmitting(false);
     }
@@ -57,6 +62,7 @@ export default function CartPage() {
           {locale === "zh" ? "提交后订单会保存到系统，并同时打开 WhatsApp 发送订单信息。" : "Submit your order to the system and send the same order message to FAMFOOD on WhatsApp."}
         </p>
         {savedOrder && <p className="mt-5 border border-emerald-200 bg-emerald-50 p-4 text-sm font-bold text-emerald-700">Order saved: {savedOrder}</p>}
+        {checkoutError && <p className="mt-5 border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{checkoutError}</p>}
 
         <div className="mt-10 grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="ff-card p-5">
@@ -70,24 +76,25 @@ export default function CartPage() {
             ) : (
               <div className="space-y-4">
                 {cart.lines.map((line) => (
-                  <div key={line.productId} className="grid gap-4 border border-[#ddd7cc] p-4 sm:grid-cols-[100px_1fr_auto] sm:items-center">
+                  <div key={`${line.productId}:${line.variantId || ""}`} className="grid gap-4 border border-[#ddd7cc] p-4 sm:grid-cols-[100px_1fr_auto] sm:items-center">
                     <div className="relative h-24 overflow-hidden bg-[#f7f2e8]">
                       <Image src={line.product.image} alt={pick(line.product.name)} fill sizes="100px" className="object-cover" />
                     </div>
                     <div>
                       <p className="font-bold text-slate-950">{pick(line.product.name)}</p>
+                      {line.variant?.specification && <p className="mt-1 text-sm font-bold text-slate-700">{line.variant.specification}</p>}
                       <p className="mt-1 text-sm text-slate-500">{pick(line.product.packing)} · {line.product.weight}</p>
                       <p className="mt-2 font-bold text-[#07586b]">{formatCurrency(line.lineTotal)}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button type="button" onClick={() => cart.update(line.productId, line.quantity - 1)} className="h-9 w-9 border border-slate-200">
+                      <button type="button" onClick={() => cart.update(line.productId, line.quantity - 1, line.variantId)} className="h-9 w-9 border border-slate-200">
                         <Minus className="mx-auto h-4 w-4" />
                       </button>
-                      <input value={line.quantity} onChange={(event) => cart.update(line.productId, Number(event.target.value))} className="h-9 w-14 border border-slate-200 text-center text-sm font-bold" />
-                      <button type="button" onClick={() => cart.update(line.productId, line.quantity + 1)} className="h-9 w-9 border border-slate-200">
+                      <input value={line.quantity} onChange={(event) => cart.update(line.productId, Number(event.target.value), line.variantId)} className="h-9 w-14 border border-slate-200 text-center text-sm font-bold" />
+                      <button type="button" onClick={() => cart.update(line.productId, line.quantity + 1, line.variantId)} className="h-9 w-9 border border-slate-200">
                         <Plus className="mx-auto h-4 w-4" />
                       </button>
-                      <button type="button" onClick={() => cart.remove(line.productId)} className="h-9 w-9 text-red-600">
+                      <button type="button" onClick={() => cart.remove(line.productId, line.variantId)} className="h-9 w-9 text-red-600">
                         <Trash2 className="mx-auto h-4 w-4" />
                       </button>
                     </div>

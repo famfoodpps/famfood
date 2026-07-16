@@ -1,35 +1,26 @@
 import { NextResponse } from "next/server";
-import { restaurantCustomers } from "@/data/catalog";
 import { customerFromRow, customerToRow } from "@/lib/db-mappers";
 import { assertRole } from "@/lib/supabase";
 import type { RestaurantCustomer } from "@/types/catalog";
 
 export async function GET(request: Request) {
-  const { client, ok } = await assertRole(request, ["admin"]);
-  if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!client) return NextResponse.json({ customers: restaurantCustomers, source: "seed" });
+  const { client, ok, configured } = await assertRole(request, ["admin"]);
+  if (!configured) return NextResponse.json({ error: "Supabase admin connection is not configured." }, { status: 503 });
+  if (!ok || !client) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { data, error } = await client.from("restaurant_customers").select("*").order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ customers: data.map(customerFromRow), source: "supabase" });
 }
 
 export async function POST(request: Request) {
-  const { client, ok } = await assertRole(request, ["admin"]);
-  if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { client, ok, configured } = await assertRole(request, ["admin"]);
+  if (!configured) return NextResponse.json({ error: "Supabase admin connection is not configured." }, { status: 503 });
+  if (!ok || !client) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = (await request.json()) as RestaurantCustomer;
   if (!body.email || !body.temporaryPassword || !body.restaurantName || !body.picName) {
     return NextResponse.json({ error: "Restaurant name, PIC name, email and temporary password are required." }, { status: 400 });
   }
-
-  const localCustomer = {
-    ...body,
-    id: body.id || `r-${Date.now()}`,
-    loginEnabled: true,
-    status: body.status || "Active",
-  };
-
-  if (!client) return NextResponse.json({ customer: localCustomer, source: "seed" }, { status: 201 });
 
   const { data: authData, error: authError } = await client.auth.admin.createUser({
     email: body.email,
@@ -95,10 +86,11 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const { client, ok } = await assertRole(request, ["admin"]);
-  if (!ok) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const { client, ok, configured } = await assertRole(request, ["admin"]);
+  if (!configured) return NextResponse.json({ error: "Supabase admin connection is not configured." }, { status: 503 });
+  if (!ok || !client) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const body = (await request.json()) as RestaurantCustomer;
-  if (!client) return NextResponse.json({ customer: body, source: "seed" });
+  if (!body.id || !body.restaurantName?.trim() || !body.picName?.trim()) return NextResponse.json({ error: "Customer id, restaurant name and PIC name are required." }, { status: 400 });
 
   const { data, error } = await client.from("restaurant_customers").update(customerToRow(body)).eq("id", body.id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

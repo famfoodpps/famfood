@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-labelledby="title description">
+  <title id="title">FAMFOOD product image coming soon</title>
+  <desc id="description">Neutral placeholder for products without a confirmed catalog image.</desc>
+  <rect width="800" height="800" fill="#f7f2e8"/>
+  <circle cx="400" cy="330" r="130" fill="#07586b" opacity="0.12"/>
+  <path d="M300 355c42-88 158-88 200 0-42 88-158 88-200 0Z" fill="#07586b" opacity="0.75"/>
+  <circle cx="445" cy="340" r="10" fill="#f7f2e8"/>
+  <path d="m300 355-70-55v110Z" fill="#07586b" opacity="0.75"/>
+  <text x="400" y="545" text-anchor="middle" font-family="Arial, sans-serif" font-size="54" font-weight="700" fill="#07586b">FAMFOOD</text>
+  <text x="400" y="600" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" fill="#59666d">Image coming soon</text>
+</svg>

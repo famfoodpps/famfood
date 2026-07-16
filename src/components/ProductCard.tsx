@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Check, MessageCircle, Plus, ShoppingCart } from "lucide-react";
 import { useEffect, useState } from "react";
-import { formatCurrency, getCategoryName, getProductCategorySlug } from "@/data/catalog";
+import { formatCurrency, getDefaultVariant, variantPrice } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
 import { useLanguage } from "@/hooks/useLanguage";
 import { productWhatsAppUrl } from "@/lib/whatsapp";
@@ -18,9 +18,10 @@ type ProductCardProps = {
 export function ProductCard({ product, mode = "public" }: ProductCardProps) {
   const cart = useCart(mode);
   const { locale, pick } = useLanguage();
-  const price = mode === "restaurant" ? product.restaurantPrice || product.publicPrice : product.publicPrice;
-  const categoryName = getCategoryName(getProductCategorySlug(product), locale);
-  const hasPrice = price > 0;
+  const variant = getDefaultVariant(product, mode);
+  const price = variant ? variantPrice(variant, mode) : mode === "restaurant" ? product.restaurantPrice : product.publicPrice;
+  const categoryName = pick(product.categoryName ?? { en: product.sourceCategory || "Products", zh: product.sourceCategory || "产品" });
+  const hasPrice = price !== null && price > 0;
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
@@ -30,7 +31,7 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
   }, [added]);
 
   function handleAdd() {
-    cart.add(product.id);
+    cart.add(product.id, 1, variant?.id);
     setAdded(true);
   }
 
@@ -56,7 +57,7 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
         <div className="mt-5 flex flex-col items-stretch justify-between gap-3 border-t border-[#eee7da] pt-5 sm:flex-row sm:items-center">
           <div className="text-left">
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{mode === "restaurant" ? "Restaurant" : "Retail"}</p>
-            <p className="text-xl font-black text-[#07586b]">{hasPrice ? formatCurrency(price) : "Ask price"}</p>
+            <p className="text-xl font-black text-[#07586b]">{hasPrice ? formatCurrency(price) : "Ask Price"}</p>
           </div>
           {hasPrice ? (
             <button
@@ -72,13 +73,13 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
             </button>
           ) : (
             <a
-              href={productWhatsAppUrl(product, locale)}
+              href={productWhatsAppUrl(product, locale, variant)}
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-10 items-center justify-center bg-[#07586b] px-4 text-sm font-black text-white transition hover:bg-[#043f4f] sm:w-auto"
             >
               <MessageCircle className="mr-2 h-4 w-4" />
-              {locale === "zh" ? "询价" : "Ask"}
+              {locale === "zh" ? "WhatsApp 询价" : "WhatsApp Ask Price"}
             </a>
           )}
         </div>

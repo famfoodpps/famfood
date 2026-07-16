@@ -1,5 +1,5 @@
 import { businessSettings, formatCurrency, text } from "@/data/catalog";
-import type { CartLine, Locale, Product } from "@/types/catalog";
+import type { CartLine, Locale, Product, ProductVariant } from "@/types/catalog";
 
 export type CheckoutDetails = {
   name: string;
@@ -11,14 +11,17 @@ export type CheckoutDetails = {
   notes?: string;
 };
 
-export function productWhatsAppUrl(product: Product, locale: Locale) {
-  const message = `Hi FAMFOOD, I would like to ask about ${text(product.name, locale)} (${product.sku}).`;
+export function productWhatsAppUrl(product: Product, locale: Locale, variant?: ProductVariant) {
+  const specification = variant?.specification ? ` - ${variant.specification}` : "";
+  const sku = product.sku ? ` (${product.sku})` : "";
+  const message = `Hi FAMFOOD, I would like to ask the price for ${text(product.name, locale)}${specification}${sku}.`;
   return `https://wa.me/${businessSettings.whatsappInternational}?text=${encodeURIComponent(message)}`;
 }
 
 export function buildWhatsAppOrderMessage(lines: CartLine[], details: CheckoutDetails, locale: Locale) {
   const itemLines = lines.map((line, index) => {
-    return `${index + 1}. ${text(line.product.name, locale)} x ${line.quantity} - ${formatCurrency(line.lineTotal)}`;
+    const specification = line.variant?.specification ? ` (${line.variant.specification})` : "";
+    return `${index + 1}. ${text(line.product.name, locale)}${specification} x ${line.quantity} - ${formatCurrency(line.lineTotal)}`;
   });
 
   const total = lines.reduce((sum, line) => sum + line.lineTotal, 0);

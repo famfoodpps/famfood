@@ -1,16 +1,17 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, History, KeyRound, LayoutDashboard, LogOut, Plus, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
+import { Check, History, KeyRound, LayoutDashboard, LogOut, MessageCircle, Plus, Search, ShoppingCart, Trash2, UserRound } from "lucide-react";
 import { ProductCard } from "@/components/ProductCard";
 import { StatusBadge } from "@/components/StatusBadge";
-import { demoOrders, formatCurrency, getProductCategorySlug, products as seedProducts, restaurantCustomers } from "@/data/catalog";
+import { formatCurrency, getDefaultVariant, variantPrice } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
 import { useLanguage } from "@/hooks/useLanguage";
 import { createBrowserSupabase } from "@/lib/supabase";
-import type { Order, Product, RestaurantCustomer } from "@/types/catalog";
+import { productWhatsAppUrl } from "@/lib/whatsapp";
+import type { Category, Order, Product, RestaurantCustomer } from "@/types/catalog";
 
 type PortalTab = "dashboard" | "products" | "quick" | "cart" | "history" | "account";
 
@@ -23,10 +24,12 @@ const tabs = [
   { id: "account", label: "Account Details", icon: UserRound },
 ] satisfies { id: PortalTab; label: string; icon: typeof LayoutDashboard }[];
 
+const emptyCustomer: RestaurantCustomer = { id: "", restaurantName: "Restaurant Portal", picName: "", phone: "", email: "", address: "", priceTier: "Restaurant", status: "Pending" };
+
 export default function RestaurantPortalPage() {
   const router = useRouter();
   const cart = useCart("restaurant");
-  const { pick } = useLanguage();
+  const { locale, pick } = useLanguage();
   const [tab, setTab] = useState<PortalTab>("dashboard");
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [productSearch, setProductSearch] = useState("");
@@ -38,8 +41,13 @@ export default function RestaurantPortalPage() {
   const [quickAddedId, setQuickAddedId] = useState("");
   const [quickNotice, setQuickNotice] = useState("");
   const [orders, setOrders] = useState<Order[]>([]);
-  const [productList, setProductList] = useState<Product[]>(seedProducts);
-  const [customer, setCustomer] = useState<RestaurantCustomer>(restaurantCustomers[0]);
+  const [productList, setProductList] = useState<Product[]>([]);
+  const [customer, setCustomer] = useState<RestaurantCustomer>(emptyCustomer);
+  const [portalError, setPortalError] = useState("");
+  const [portalPage, setPortalPage] = useState(1);
+  const [portalTotalPages, setPortalTotalPages] = useState(1);
+  const [portalTotal, setPortalTotal] = useState(0);
+  const [portalCategories, setPortalCategories] = useState<Category[]>([]);
   const [passwordForm, setPasswordForm] = useState({ password: "", confirm: "" });
   const [passwordNotice, setPasswordNotice] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -58,8 +66,11 @@ export default function RestaurantPortalPage() {
           if (payload.customer) setCustomer(payload.customer);
           if (Array.isArray(payload.products)) setProductList(payload.products);
           if (Array.isArray(payload.orders)) setOrders(payload.orders);
+          setPortalTotalPages(payload.totalPages || 1);
+          setPortalTotal(payload.total || 0);
         })
-        .catch(() => setOrders(demoOrders.filter((order) => order.channel === "Restaurant")));
+        .catch((caught) => setPortalError(caught instanceof Error ? caught.message : "Unable to load restaurant portal."));
+      fetch("/api/categories").then((response) => response.json()).then((payload) => setPortalCategories(Array.isArray(payload.categories) ? payload.categories : [])).catch(() => undefined);
     });
   }, [router]);
 
@@ -67,12 +78,9 @@ export default function RestaurantPortalPage() {
   const activeProducts = useMemo(() => productList.filter((product) => product.active), [productList]);
   const categoryOptions = useMemo(() => {
     const map = new Map<string, string>();
-    activeProducts.forEach((product) => {
-      const slug = getProductCategorySlug(product);
-      map.set(slug, product.categoryName?.en || slug.replace(/-/g, " "));
-    });
+    portalCategories.forEach((category) => map.set(category.slug, category.name.en));
     return Array.from(map.entries()).map(([slug, label]) => ({ slug, label }));
-  }, [activeProducts]);
+  }, [portalCategories]);
   const filteredProducts = useMemo(() => filterRestaurantProducts(activeProducts, productSearch, productCategory, productStock), [activeProducts, productCategory, productSearch, productStock]);
   const quickProducts = useMemo(() => {
     return filterRestaurantProducts(activeProducts, quickSearch, quickCategory, quickStock);
@@ -83,6 +91,29 @@ export default function RestaurantPortalPage() {
     const timeout = window.setTimeout(() => setQuickAddedId(""), 1200);
     return () => window.clearTimeout(timeout);
   }, [quickAddedId]);
+
+  const loadPortalProducts = useCallback(async (page: number) => {
+    const session = JSON.parse(window.localStorage.getItem("famfood-session") || "{}") as { token?: string };
+    const params = new URLSearchParams({ page: String(page), pageSize: "24" });
+    if (productSearch.trim()) params.set("q", productSearch.trim());
+    if (productCategory !== "all") params.set("category", productCategory);
+    try {
+      const response = await fetch(`/api/restaurant/portal?${params}`, { headers: session.token ? { authorization: `Bearer ${session.token}` } : {} });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Unable to load products.");
+      setProductList(Array.isArray(payload.products) ? payload.products : []);
+      setPortalPage(payload.page || page);
+      setPortalTotalPages(payload.totalPages || 1);
+      setPortalTotal(payload.total || 0);
+    } catch (caught) {
+      setPortalError(caught instanceof Error ? caught.message : "Unable to load products.");
+    }
+  }, [productCategory, productSearch]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => loadPortalProducts(1), 300);
+    return () => window.clearTimeout(timeout);
+  }, [loadPortalProducts]);
 
   async function submitRestaurantOrder() {
     if (cart.lines.length === 0) return;
@@ -120,12 +151,13 @@ export default function RestaurantPortalPage() {
         items: cart.items,
       }),
     }).catch(() => null);
-    if (response?.ok) {
-      const payload = await response.json();
-      setOrders((current) => [payload.order || nextOrder, ...current]);
-    } else {
-      setOrders((current) => [nextOrder, ...current]);
+    if (!response?.ok) {
+      const payload = await response?.json().catch(() => ({}));
+      setPortalError(payload?.error || "Unable to submit order.");
+      return;
     }
+    const payload = await response.json();
+    setOrders((current) => [{ ...nextOrder, id: payload.order.id, orderNumber: payload.order.orderNumber, createdAt: payload.order.createdAt }, ...current]);
     cart.clear();
     setTab("history");
   }
@@ -133,7 +165,8 @@ export default function RestaurantPortalPage() {
   function addQuickOrder(productId: string) {
     const quantity = Math.max(1, quantities[productId] ?? 1);
     const product = productList.find((item) => item.id === productId);
-    cart.add(productId, quantity);
+    const variant = product ? getDefaultVariant(product, "restaurant") : undefined;
+    cart.add(productId, quantity, variant?.id);
     setQuantities((current) => ({ ...current, [productId]: 1 }));
     setQuickAddedId(productId);
     setQuickNotice(product ? `Added ${quantity} x ${pick(product.name)} to cart.` : "Added to cart.");
@@ -210,6 +243,7 @@ export default function RestaurantPortalPage() {
           </nav>
 
           <section className="min-w-0">
+            {portalError && <p className="mb-4 border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{portalError}</p>}
             {tab === "dashboard" && (
               <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                 <Metric label="Open Orders" value={recentOrders.filter((order) => !["Delivered", "Cancelled"].includes(order.status)).length.toString()} />
@@ -227,7 +261,7 @@ export default function RestaurantPortalPage() {
                 <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                   <div>
                     <h2 className="display-serif text-2xl font-medium sm:text-3xl">Product List</h2>
-                    <p className="mt-2 text-sm font-semibold text-slate-500">Showing {filteredProducts.length} of {activeProducts.length} products.</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-500">Showing {filteredProducts.length} on this page, {portalTotal} total.</p>
                   </div>
                 </div>
                 <RestaurantProductFilters
@@ -245,6 +279,7 @@ export default function RestaurantPortalPage() {
                   ))}
                 </div>
                 {filteredProducts.length === 0 && <p className="mt-6 border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-bold text-slate-500">No products match the current filters.</p>}
+                <div className="mt-6 flex items-center justify-between gap-3"><button type="button" disabled={portalPage <= 1} onClick={() => loadPortalProducts(portalPage - 1)} className="ff-button ff-button-outline disabled:opacity-40">Previous</button><span className="text-sm font-black">{portalPage} / {portalTotalPages}</span><button type="button" disabled={portalPage >= portalTotalPages} onClick={() => loadPortalProducts(portalPage + 1)} className="ff-button ff-button-outline disabled:opacity-40">Next</button></div>
               </div>
             )}
 
@@ -268,8 +303,9 @@ export default function RestaurantPortalPage() {
                 />
                 <div className="mt-6 space-y-3">
                   {quickProducts.map((product) => {
-                    const effectivePrice = product.restaurantPrice || product.publicPrice;
-                    const canAdd = product.stockStatus !== "Out of Stock" && effectivePrice > 0;
+                    const variant = getDefaultVariant(product, "restaurant");
+                    const effectivePrice = variant ? variantPrice(variant, "restaurant") : product.restaurantPrice;
+                    const canAdd = product.stockStatus !== "Out of Stock" && effectivePrice !== null && effectivePrice > 0;
                     const added = quickAddedId === product.id;
                     return (
                     <div key={product.id} className="grid grid-cols-[72px_minmax(0,1fr)] gap-3 border border-[#ddd7cc] bg-white p-3 lg:grid-cols-[72px_minmax(0,1fr)_120px_112px_112px] lg:items-center">
@@ -281,10 +317,9 @@ export default function RestaurantPortalPage() {
                         <p className="mt-1 text-sm text-slate-500">
                           {product.sku} · {pick(product.moq)}
                         </p>
-                        {product.restaurantPrice <= 0 && product.publicPrice > 0 && <p className="mt-1 text-xs font-black uppercase text-[#c22931]">Using retail price until restaurant price is set</p>}
                       </div>
                       <div className="col-span-2 text-sm font-black text-[#07586b] lg:col-span-1">
-                        {effectivePrice > 0 ? formatCurrency(effectivePrice) : "Ask price"}
+                        {effectivePrice !== null && effectivePrice > 0 ? formatCurrency(effectivePrice) : "Ask Price"}
                       </div>
                       <input
                         type="number"
@@ -293,10 +328,9 @@ export default function RestaurantPortalPage() {
                         onChange={(event) => setQuantities((current) => ({ ...current, [product.id]: Number(event.target.value) }))}
                         className="admin-input h-11"
                       />
-                      <button type="button" onClick={() => addQuickOrder(product.id)} disabled={!canAdd} className={`quick-order-add-button disabled:bg-slate-300 ${added ? "is-added" : ""}`}>
-                        {added ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                        {added ? "Added" : "Add"}
-                      </button>
+                      {canAdd ? <button type="button" onClick={() => addQuickOrder(product.id)} className={`quick-order-add-button ${added ? "is-added" : ""}`}>
+                        {added ? <Check className="h-4 w-4" /> : <Plus className="h-4 w-4" />}{added ? "Added" : "Add"}
+                      </button> : <a href={productWhatsAppUrl(product, locale, variant)} target="_blank" rel="noreferrer" className="quick-order-add-button"><MessageCircle className="h-4 w-4" />Ask Price</a>}
                     </div>
                     );
                   })}
@@ -310,13 +344,13 @@ export default function RestaurantPortalPage() {
                 <h2 className="display-serif text-2xl font-medium sm:text-3xl">Submit Order</h2>
                 <div className="mt-5 space-y-3">
                   {cart.lines.map((line) => (
-                    <div key={line.productId} className="grid gap-3 border border-[#ddd7cc] p-4 sm:grid-cols-[1fr_auto_auto] sm:items-center">
+                    <div key={`${line.productId}:${line.variantId || ""}`} className="grid gap-3 border border-[#ddd7cc] p-4 sm:grid-cols-[1fr_auto_auto] sm:items-center">
                       <div className="min-w-0">
                         <p className="break-words font-bold">{pick(line.product.name)}</p>
                         <p className="text-sm text-slate-500">Qty {line.quantity}</p>
                       </div>
                       <p className="font-black text-[#07586b]">{formatCurrency(line.lineTotal)}</p>
-                      <button type="button" onClick={() => cart.remove(line.productId)} className="inline-flex h-10 w-10 items-center justify-center border border-red-100 text-red-600 hover:bg-red-50" aria-label={`Remove ${pick(line.product.name)} from cart`}>
+                      <button type="button" onClick={() => cart.remove(line.productId, line.variantId)} className="inline-flex h-10 w-10 items-center justify-center border border-red-100 text-red-600 hover:bg-red-50" aria-label={`Remove ${pick(line.product.name)} from cart`}>
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
@@ -392,11 +426,12 @@ function Metric({ label, value }: { label: string; value: string }) {
 function filterRestaurantProducts(products: Product[], searchValue: string, categoryValue: string, stockValue: string) {
   const search = searchValue.trim().toLowerCase();
   return products.filter((product) => {
-    const categorySlug = getProductCategorySlug(product);
-    const effectivePrice = product.restaurantPrice || product.publicPrice;
+    const categorySlug = product.categorySlug || product.categoryId;
+    const variant = getDefaultVariant(product, "restaurant");
+    const effectivePrice = variant ? variantPrice(variant, "restaurant") : product.restaurantPrice;
     const matchesSearch = !search || `${product.sku} ${product.name.en} ${product.name.zh}`.toLowerCase().includes(search);
     const matchesCategory = categoryValue === "all" || categorySlug === categoryValue || product.categorySlug === categoryValue || product.categoryId === categoryValue;
-    const matchesStock = stockValue === "all" || (stockValue === "available" ? product.stockStatus !== "Out of Stock" && effectivePrice > 0 : product.stockStatus === stockValue);
+    const matchesStock = stockValue === "all" || (stockValue === "available" ? product.stockStatus !== "Out of Stock" && effectivePrice !== null && effectivePrice > 0 : product.stockStatus === stockValue);
     return matchesSearch && matchesCategory && matchesStock;
   });
 }

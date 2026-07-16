@@ -3,16 +3,28 @@
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, Building2, CheckCircle2, ShieldCheck, Truck } from "lucide-react";
+import { useEffect, useState } from "react";
 import { HeroSlider } from "@/components/HeroSlider";
 import { ProductCard } from "@/components/ProductCard";
 import { Reveal } from "@/components/Reveal";
 import { RollingText } from "@/components/RollingText";
-import { categories, featuredProducts } from "@/data/catalog";
 import { useLanguage } from "@/hooks/useLanguage";
+import type { Category, Product } from "@/types/catalog";
 
 export default function Home() {
   const { locale, pick } = useLanguage();
-  const featured = featuredProducts().slice(0, 8);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [featured, setFeatured] = useState<Product[]>([]);
+
+  useEffect(() => {
+    Promise.all([fetch("/api/categories"), fetch("/api/products?page=1&pageSize=8")])
+      .then(async ([categoryResponse, productResponse]) => {
+        const [categoryPayload, productPayload] = await Promise.all([categoryResponse.json(), productResponse.json()]);
+        if (categoryResponse.ok) setCategories(Array.isArray(categoryPayload.categories) ? categoryPayload.categories : []);
+        if (productResponse.ok) setFeatured(Array.isArray(productPayload.products) ? productPayload.products : []);
+      })
+      .catch(() => undefined);
+  }, []);
 
   return (
     <>

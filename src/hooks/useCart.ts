@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { products } from "@/data/catalog";
 import type { CartItem, CartLine, Product } from "@/types/catalog";
 
 type CartMode = "public" | "restaurant";
@@ -32,7 +31,7 @@ function writeStoredCart(mode: CartMode, items: CartItem[]) {
 
 export function useCart(mode: CartMode = "public") {
   const [items, setItems] = useState<CartItem[]>([]);
-  const [catalog, setCatalog] = useState<Product[]>(products);
+  const [catalog, setCatalog] = useState<Product[]>([]);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -59,21 +58,27 @@ export function useCart(mode: CartMode = "public") {
   }, [mode]);
 
   useEffect(() => {
-    fetch("/api/products")
+    const productIds = [...new Set(readStoredCart(mode).map((item) => item.productId))];
+    if (!productIds.length) return;
+    fetch(`/api/products?ids=${encodeURIComponent(productIds.join(","))}&pageSize=100`)
       .then((response) => response.json())
       .then((payload) => {
         if (Array.isArray(payload.products)) setCatalog(payload.products);
       })
-      .catch(() => setCatalog(products));
-  }, []);
+      .catch(() => setCatalog([]));
+  }, [items, mode]);
 
   const lines = useMemo<CartLine[]>(() => {
     return items
       .map((item) => {
         const product = catalog.find((candidate) => candidate.id === item.productId && candidate.active);
         if (!product) return null;
-        const unitPrice = mode === "restaurant" ? product.restaurantPrice || product.publicPrice : product.publicPrice;
-        return { ...item, product, unitPrice, lineTotal: unitPrice * item.quantity };
+        const variant = item.variantId ? product.variants.find((candidate) => candidate.id === item.variantId && candidate.active) : undefined;
+        const unitPrice = mode === "restaurant"
+          ? (variant ? variant.restaurantPrice : product.restaurantPrice)
+          : (variant ? variant.promotionPrice ?? variant.retailPrice : product.publicPrice);
+        if (unitPrice === null || unitPrice <= 0) return null;
+        return { ...item, product, variant, unitPrice, lineTotal: unitPrice * item.quantity };
       })
       .filter(Boolean) as CartLine[];
   }, [catalog, items, mode]);
@@ -87,28 +92,28 @@ export function useCart(mode: CartMode = "public") {
     writeStoredCart(mode, nextItems);
   }
 
-  function add(productId: string, quantity = 1) {
+  function add(productId: string, quantity = 1, variantId?: string) {
     commit((current) => {
-      const existing = current.find((item) => item.productId === productId);
+      const existing = current.find((item) => item.productId === productId && item.variantId === variantId);
       if (existing) {
         return current.map((item) =>
-          item.productId === productId ? { ...item, quantity: Math.max(1, item.quantity + quantity) } : item,
+          item.productId === productId && item.variantId === variantId ? { ...item, quantity: Math.max(1, item.quantity + quantity) } : item,
         );
       }
-      return [...current, { productId, quantity: Math.max(1, quantity) }];
+      return [...current, { productId, variantId, quantity: Math.max(1, quantity) }];
     });
   }
 
-  function update(productId: string, quantity: number) {
+  function update(productId: string, quantity: number, variantId?: string) {
     commit((current) =>
       current
-        .map((item) => (item.productId === productId ? { ...item, quantity: Math.max(0, quantity) } : item))
+        .map((item) => (item.productId === productId && item.variantId === variantId ? { ...item, quantity: Math.max(0, quantity) } : item))
         .filter((item) => item.quantity > 0),
     );
   }
 
-  function remove(productId: string) {
-    commit((current) => current.filter((item) => item.productId !== productId));
+  function remove(productId: string, variantId?: string) {
+    commit((current) => current.filter((item) => item.productId !== productId || item.variantId !== variantId));
   }
 
   function clear() {
