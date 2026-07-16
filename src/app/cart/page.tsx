@@ -83,7 +83,7 @@ export default function CartPage() {
                     <div>
                       <p className="font-bold text-slate-950">{pick(line.product.name)}</p>
                       {line.variant?.specification && <p className="mt-1 text-sm font-bold text-slate-700">{line.variant.specification}</p>}
-                      <p className="mt-1 text-sm text-slate-500">{pick(line.product.packing)} · {line.product.weight}</p>
+                      <p className="mt-1 text-sm text-slate-500">{pick(line.product.packing) || line.product.weight}</p>
                       <p className="mt-2 font-bold text-[#07586b]">{formatCurrency(line.lineTotal)}</p>
                     </div>
                     <div className="flex items-center gap-2">

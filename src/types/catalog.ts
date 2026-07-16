@@ -51,6 +51,7 @@ export type Product = {
   imageStoragePath?: string;
   stockStatus: StockStatus;
   featured: boolean;
+  retailVisible: boolean;
   active: boolean;
 };
 

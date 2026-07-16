@@ -61,6 +61,11 @@ export function text(value: { en: string; zh: string }, locale: Locale) {
   return value[locale] || value.en;
 }
 
+export function isPlaceholderDescription(value: string) {
+  const trimmed = value.trim();
+  return !trimmed || /from the FAMFOOD catalog\.?$/i.test(trimmed) || /来自\s*FAMFOOD\s*产品目录。?$/.test(trimmed);
+}
+
 export function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-MY", {
     style: "currency",

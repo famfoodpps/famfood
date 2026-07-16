@@ -41,6 +41,17 @@ const categories = [
   active: true,
 }));
 
+const featuredSeafoodFamilies = new Set([
+  "fish-fillet--salmon-fillet",
+  "fish-fillet--chilean-cod-steak",
+  "whole-fish--golden-pomfret",
+  "whole-fish--seabass",
+  "whole-fish--black-pomfret",
+  "fish-fillet--grouper-fish-fillet",
+  "fish-fillet--halibut-fillet",
+  "fish-fillet--seabass-fillet",
+]);
+
 function parseCsv(text) {
   const rows = [];
   let row = [];
@@ -193,9 +204,7 @@ const missingImages = [];
 const categoryReview = [];
 const categoryImages = new Map();
 let uploadedImages = 0;
-let familyIndex = 0;
 for (const [familyId, familyRecords] of familyGroups) {
-  familyIndex += 1;
   const preferred = familyRecords.find((record) => record.sales_status === "formal_catalog") || familyRecords[0];
   const categorySlug = categoryFor(preferred);
   if (preferred.category === "Others" && categorySlug === "frozen-food") {
@@ -203,6 +212,7 @@ for (const [familyId, familyRecords] of familyGroups) {
   }
   const publicPrices = familyRecords.map((record) => money(record.promotion_price_rm) ?? money(record.retail_price_rm)).filter((value) => value !== null);
   const restaurantPrices = familyRecords.map((record) => money(record.restaurant_price_rm)).filter((value) => value !== null);
+  const retailVisible = familyRecords.some((record) => record.sales_status === "formal_catalog");
   const imageFilename = familyRecords.find((record) => record.image_filename)?.image_filename || "";
   const uploaded = await uploadImage(imageFilename, familyId);
   if (uploaded) {
@@ -229,7 +239,8 @@ for (const [familyId, familyRecords] of familyGroups) {
     public_price: publicPrices.length ? Math.min(...publicPrices) : null,
     restaurant_price: restaurantPrices.length ? Math.min(...restaurantPrices) : null,
     stock_status: "In Stock",
-    featured: familyRecords.some((record) => record.sales_status === "formal_catalog") && familyIndex <= 12,
+    featured: retailVisible && featuredSeafoodFamilies.has(familyId),
+    retail_visible: retailVisible,
     active: true,
     source_status: familyRecords.some((record) => record.sales_status === "formal_catalog") ? "formal_catalog" : "wholesale_inquiry",
     source_category: preferred.category,

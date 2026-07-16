@@ -69,6 +69,7 @@ export function productFromRow(row: Row): Product {
     imageStoragePath: str(row.image_storage_path),
     stockStatus: str(row.stock_status, "In Stock") as Product["stockStatus"],
     featured: bool(row.featured),
+    retailVisible: bool(row.retail_visible, true),
     active: bool(row.active, true),
   };
 }
@@ -95,6 +96,7 @@ export function productToRow(product: Product) {
     image_storage_path: product.imageStoragePath || null,
     stock_status: product.stockStatus,
     featured: product.featured,
+    retail_visible: product.retailVisible,
     active: product.active,
   };
 }

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Check, MessageCircle, Plus, ShoppingCart } from "lucide-react";
 import { useEffect, useState } from "react";
-import { formatCurrency, getDefaultVariant, variantPrice } from "@/data/catalog";
+import { formatCurrency, getDefaultVariant, isPlaceholderDescription, variantPrice } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
 import { useLanguage } from "@/hooks/useLanguage";
 import { productWhatsAppUrl } from "@/lib/whatsapp";
@@ -22,6 +22,11 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
   const price = variant ? variantPrice(variant, mode) : mode === "restaurant" ? product.restaurantPrice : product.publicPrice;
   const categoryName = pick(product.categoryName ?? { en: product.sourceCategory || "Products", zh: product.sourceCategory || "产品" });
   const hasPrice = price !== null && price > 0;
+  const packing = pick(product.packing).trim();
+  const weight = product.weight.trim();
+  const specification = packing || weight;
+  const description = pick(product.description);
+  const showDescription = !isPlaceholderDescription(description);
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
@@ -36,7 +41,7 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
   }
 
   return (
-    <article className="group overflow-hidden border border-[#ddd7cc] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#07586b] hover:shadow-2xl hover:shadow-[#07586b]/10">
+    <article className="group flex h-full min-h-[570px] flex-col overflow-hidden border border-[#ddd7cc] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#07586b] hover:shadow-2xl hover:shadow-[#07586b]/10">
       <Link href={`/products/${product.slug}`} className="block">
         <div className="relative aspect-square overflow-hidden bg-[#f7f2e8]">
           <Image src={product.image} alt={pick(product.name)} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition duration-700 group-hover:scale-105" />
@@ -46,15 +51,13 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
           </span>
         </div>
       </Link>
-      <div className="p-6 text-center">
-        <Link href={`/products/${product.slug}`} className="display-serif text-xl font-medium text-[#182126] hover:text-[#07586b]">
+      <div className="flex flex-1 flex-col p-6 text-center">
+        <Link href={`/products/${product.slug}`} className="display-serif line-clamp-2 min-h-14 text-xl font-medium leading-7 text-[#182126] hover:text-[#07586b]">
           {pick(product.name)}
         </Link>
-        <p className="mt-2 text-sm text-slate-500">
-          {pick(product.packing)} · {product.weight}
-        </p>
-        <p className="mt-4 line-clamp-2 min-h-10 text-sm leading-5 text-slate-600">{pick(product.description)}</p>
-        <div className="mt-5 flex flex-col items-stretch justify-between gap-3 border-t border-[#eee7da] pt-5 sm:flex-row sm:items-center">
+        <p className="mt-2 line-clamp-2 min-h-10 text-sm text-slate-500">{specification}</p>
+        {showDescription && <p className="mt-4 line-clamp-2 min-h-10 text-sm leading-5 text-slate-600">{description}</p>}
+        <div className="mt-auto flex flex-col items-stretch justify-between gap-3 border-t border-[#eee7da] pt-5 sm:flex-row sm:items-center">
           <div className="text-left">
             <p className="text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">{mode === "restaurant" ? "Restaurant" : "Retail"}</p>
             <p className="text-xl font-black text-[#07586b]">{hasPrice ? formatCurrency(price) : "Ask Price"}</p>

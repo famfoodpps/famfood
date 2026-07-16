@@ -18,7 +18,13 @@ export async function GET(request: Request) {
   if (customerError) return NextResponse.json({ error: customerError.message }, { status: 500 });
   if (!customerRow) return NextResponse.json({ error: "Restaurant customer profile not found." }, { status: 404 });
 
-  let productsQuery = client.from("products").select(PRODUCT_SELECT, { count: "exact" }).eq("active", true).eq("product_variants.active", true).order("created_at", { ascending: false });
+  let productsQuery = client
+    .from("products")
+    .select(PRODUCT_SELECT, { count: "exact" })
+    .eq("active", true)
+    .eq("product_variants.active", true)
+    .order("restaurant_price", { ascending: true, nullsFirst: false })
+    .order("name_en", { ascending: true });
   if (category && category !== "all") productsQuery = productsQuery.eq("categories.slug", category);
   if (search) productsQuery = productsQuery.or(`sku.ilike.%${search}%,name_en.ilike.%${search}%,name_zh.ilike.%${search}%`);
 

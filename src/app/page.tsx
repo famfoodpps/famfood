@@ -17,7 +17,7 @@ export default function Home() {
   const [featured, setFeatured] = useState<Product[]>([]);
 
   useEffect(() => {
-    Promise.all([fetch("/api/categories"), fetch("/api/products?page=1&pageSize=8")])
+    Promise.all([fetch("/api/categories"), fetch("/api/products?featured=true&page=1&pageSize=8")])
       .then(async ([categoryResponse, productResponse]) => {
         const [categoryPayload, productPayload] = await Promise.all([categoryResponse.json(), productResponse.json()]);
         if (categoryResponse.ok) setCategories(Array.isArray(categoryPayload.categories) ? categoryPayload.categories : []);
@@ -99,7 +99,7 @@ export default function Home() {
           </Reveal>
           <div className="mt-12 grid gap-7 md:grid-cols-2 lg:grid-cols-4">
             {featured.map((product, index) => (
-              <Reveal key={product.id} delay={index * 0.035}>
+              <Reveal key={product.id} delay={index * 0.035} className="h-full">
                 <ProductCard product={product} />
               </Reveal>
             ))}

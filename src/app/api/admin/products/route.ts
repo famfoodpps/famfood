@@ -54,12 +54,15 @@ export async function GET(request: Request) {
   const search = cleanSearch(searchParams.get("q"));
   const category = searchParams.get("category")?.trim();
   const status = searchParams.get("status")?.trim();
+  const catalog = searchParams.get("catalog")?.trim();
   const { page, pageSize, from, to } = paginationFrom(searchParams, 30);
   let query = client.from("products").select(PRODUCT_SELECT, { count: "exact" }).order("created_at", { ascending: false }).range(from, to);
   if (search) query = query.or(`sku.ilike.%${search}%,name_en.ilike.%${search}%,name_zh.ilike.%${search}%`);
   if (category && category !== "all") query = query.eq("categories.slug", category);
   if (status === "active") query = query.eq("active", true);
   if (status === "inactive") query = query.eq("active", false);
+  if (catalog === "retail") query = query.eq("retail_visible", true);
+  if (catalog === "wholesale") query = query.eq("retail_visible", false);
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const [{ count: activeTotal }, { count: featuredTotal }] = await Promise.all([

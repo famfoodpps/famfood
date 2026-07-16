@@ -12,6 +12,7 @@ export default function ProductsPage() {
   const { locale, pick } = useLanguage();
   const [category, setCategory] = useState("all");
   const [query, setQuery] = useState("");
+  const [sort, setSort] = useState("recommended");
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [page, setPage] = useState(1);
@@ -42,6 +43,7 @@ export default function ProductsPage() {
       const params = new URLSearchParams({ page: String(page), pageSize: "24" });
       if (category !== "all") params.set("category", category);
       if (query.trim()) params.set("q", query.trim());
+      if (sort !== "recommended") params.set("sort", sort);
       try {
         const response = await fetch(`/api/products?${params}`, { signal: controller.signal });
         const payload = await response.json();
@@ -59,7 +61,7 @@ export default function ProductsPage() {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [category, page, query]);
+  }, [category, page, query, sort]);
 
   function selectCategory(value: string) {
     setCategory(value);
@@ -83,21 +85,28 @@ export default function ProductsPage() {
         <div className="section-shell">
           <Reveal className="grid gap-8 md:grid-cols-[1fr_0.9fr] md:items-center">
             <div>
-              <p className="ff-eyebrow">Product Management</p>
+              <p className="ff-eyebrow">{locale === "zh" ? "FAMFOOD 产品" : "Our Products"}</p>
               <h2 className="display-serif mt-3 border-l-4 border-[#c22931] pl-5 text-4xl font-medium text-[#182126]">{locale === "zh" ? "产品目录" : "Product Catalog"}</h2>
-              <p className="mt-4 text-sm font-bold text-slate-500">{total} {locale === "zh" ? "个产品系列" : "product families"}</p>
+              <p className="mt-4 text-sm font-bold text-slate-500">{total} {locale === "zh" ? "个产品" : "products"}</p>
             </div>
-            <label className="relative block">
-              <Search className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder={locale === "zh" ? "搜索产品或编号" : "Search product or SKU"} className="h-14 w-full border border-[#ddd7cc] bg-white pl-14 pr-5 text-sm outline-none focus:border-[#07586b]" />
-            </label>
+            <div className="grid gap-3">
+              <label className="relative block">
+                <Search className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <input value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder={locale === "zh" ? "搜索产品" : "Search products"} className="h-14 w-full border border-[#ddd7cc] bg-white pl-14 pr-5 text-sm outline-none focus:border-[#07586b]" />
+              </label>
+              <select value={sort} onChange={(event) => { setSort(event.target.value); setPage(1); }} className="h-12 w-full border border-[#ddd7cc] bg-white px-4 text-sm outline-none focus:border-[#07586b] sm:w-56 sm:justify-self-end">
+                <option value="recommended">{locale === "zh" ? "推荐排序" : "Recommended"}</option>
+                <option value="price_asc">{locale === "zh" ? "价格：从低到高" : "Price: Low to High"}</option>
+                <option value="price_desc">{locale === "zh" ? "价格：从高到低" : "Price: High to Low"}</option>
+              </select>
+            </div>
           </Reveal>
           {error && <div className="mt-8 border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{error}</div>}
           {loading ? (
             <div className="mt-10 grid gap-7 md:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 8 }).map((_, index) => <div key={index} className="aspect-[0.72] animate-pulse bg-slate-100" />)}</div>
           ) : (
             <div className="mt-10 grid gap-7 md:grid-cols-2 lg:grid-cols-4">
-              {products.map((product, index) => <Reveal key={product.id} delay={index * 0.02}><ProductCard product={product} /></Reveal>)}
+              {products.map((product, index) => <Reveal key={product.id} delay={index * 0.02} className="h-full"><ProductCard product={product} /></Reveal>)}
             </div>
           )}
           {!loading && !error && products.length === 0 && <div className="mt-10 border border-dashed border-slate-300 p-10 text-center text-slate-500">No products matched your search.</div>}

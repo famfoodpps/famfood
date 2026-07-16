@@ -76,8 +76,8 @@ export default function AdminPage() {
         product.stockStatus === productStatusFilter;
       const matchesCatalog =
         productCatalogFilter === "all" ||
-        (productCatalogFilter === "retail" && !product.sku.startsWith("W")) ||
-        (productCatalogFilter === "wholesale" && product.sku.startsWith("W"));
+        (productCatalogFilter === "retail" && product.retailVisible) ||
+        (productCatalogFilter === "wholesale" && !product.retailVisible);
       return matchesSearch && matchesCategory && matchesStatus && matchesCatalog;
     });
   }, [categoryLookup, managedProducts, productCatalogFilter, productCategoryFilter, productSearch, productStatusFilter]);
@@ -118,6 +118,7 @@ export default function AdminPage() {
       variants: [],
       stockStatus: "In Stock",
       featured: false,
+      retailVisible: true,
       active: true,
     };
     setManagedProducts((current) => [next, ...current]);
@@ -201,6 +202,7 @@ export default function AdminPage() {
     if (productSearch.trim()) params.set("q", productSearch.trim());
     if (productCategoryFilter !== "all") params.set("category", productCategoryFilter);
     if (productStatusFilter === "active" || productStatusFilter === "inactive") params.set("status", productStatusFilter);
+    if (productCatalogFilter !== "all") params.set("catalog", productCatalogFilter);
     try {
       const payload = await adminFetch(`/api/admin/products?${params}`).then((response) => response.json());
       setManagedProducts(Array.isArray(payload.products) ? payload.products : []);
@@ -212,7 +214,7 @@ export default function AdminPage() {
     } catch (caught) {
       setAdminNotice(caught instanceof Error ? caught.message : "Unable to load products.");
     }
-  }, [productCategoryFilter, productSearch, productStatusFilter]);
+  }, [productCatalogFilter, productCategoryFilter, productSearch, productStatusFilter]);
 
   async function saveProduct(product: Product) {
     try {
@@ -816,8 +818,8 @@ function ProductFilters({
       </select>
       <select value={catalogFilter} onChange={(event) => onCatalogFilter(event.target.value)} className="admin-input h-11">
         <option value="all">Retail + wholesale</option>
-        <option value="retail">Retail only</option>
-        <option value="wholesale">Wholesale only</option>
+        <option value="retail">Visible in retail</option>
+        <option value="wholesale">B2B only</option>
       </select>
       <select value={statusFilter} onChange={(event) => onStatusFilter(event.target.value)} className="admin-input h-11">
         <option value="all">All status</option>
@@ -955,6 +957,10 @@ function ProductEditor({
           </div>
 
           <div className="flex flex-wrap items-center gap-5 border-t border-[#eee7da] pt-4">
+            <label className="flex items-center gap-2 text-sm font-black text-slate-700">
+              <input type="checkbox" checked={product.retailVisible} onChange={(event) => onProductChange({ retailVisible: event.target.checked })} />
+              Visible in retail shop
+            </label>
             <label className="flex items-center gap-2 text-sm font-black text-slate-700">
               <input type="checkbox" checked={product.featured} onChange={(event) => onProductChange({ featured: event.target.checked })} />
               Featured product
