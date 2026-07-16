@@ -25,7 +25,10 @@ export default function AdminLoginPage() {
         const profileResponse = await fetch("/api/auth/session", {
           headers: { authorization: `Bearer ${data.session.access_token}` },
         });
-        const profilePayload = await profileResponse.json();
+        const profilePayload = await profileResponse.json().catch(() => ({}));
+        if (!profileResponse.ok || !profilePayload.profile) {
+          throw new Error(profilePayload.error || "Could not verify your account role — please try again in a moment. 无法验证账号角色，请稍后重试。");
+        }
         if (profilePayload.profile?.role !== "admin") throw new Error("This account is not an admin.");
         window.localStorage.setItem("famfood-session", JSON.stringify({ role: "admin", email, token: data.session.access_token }));
         router.push("/admin");

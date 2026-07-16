@@ -8,6 +8,7 @@ import { ProductCard } from "@/components/ProductCard";
 import { StatusBadge } from "@/components/StatusBadge";
 import { formatCurrency, getDefaultVariant, variantPrice } from "@/data/catalog";
 import { useCart } from "@/hooks/useCart";
+import { getPortalToken } from "@/lib/portal-auth";
 import { useLanguage } from "@/hooks/useLanguage";
 import { createBrowserSupabase } from "@/lib/supabase";
 import { productWhatsAppUrl } from "@/lib/whatsapp";
@@ -54,12 +55,12 @@ export default function RestaurantPortalPage() {
   const [passwordSaving, setPasswordSaving] = useState(false);
 
   useEffect(() => {
-    queueMicrotask(() => {
+    queueMicrotask(async () => {
       const session = window.localStorage.getItem("famfood-session");
       if (!session?.includes("restaurant")) router.push("/restaurant/login");
-      const parsed = JSON.parse(session || "{}") as { token?: string };
+      const token = await getPortalToken();
       fetch("/api/restaurant/portal", {
-        headers: parsed.token ? { authorization: `Bearer ${parsed.token}` } : {},
+        headers: token ? { authorization: `Bearer ${token}` } : {},
       })
         .then((response) => response.json())
         .then((payload) => {
@@ -93,12 +94,12 @@ export default function RestaurantPortalPage() {
   }, [quickAddedId]);
 
   const loadPortalProducts = useCallback(async (page: number) => {
-    const session = JSON.parse(window.localStorage.getItem("famfood-session") || "{}") as { token?: string };
+    const token = await getPortalToken();
     const params = new URLSearchParams({ page: String(page), pageSize: "24" });
     if (productSearch.trim()) params.set("q", productSearch.trim());
     if (productCategory !== "all") params.set("category", productCategory);
     try {
-      const response = await fetch(`/api/restaurant/portal?${params}`, { headers: session.token ? { authorization: `Bearer ${session.token}` } : {} });
+      const response = await fetch(`/api/restaurant/portal?${params}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to load products.");
       setProductList(Array.isArray(payload.products) ? payload.products : []);
@@ -137,12 +138,12 @@ export default function RestaurantPortalPage() {
         lineTotal: line.lineTotal,
       })),
     };
-    const session = JSON.parse(window.localStorage.getItem("famfood-session") || "{}") as { token?: string };
+    const token = await getPortalToken();
     const response = await fetch("/api/orders", {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(session.token ? { authorization: `Bearer ${session.token}` } : {}),
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({
         channel: "Restaurant",

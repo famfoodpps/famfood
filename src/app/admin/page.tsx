@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Boxes, Building2, Check, ChevronDown, ChevronUp, ClipboardList, Download, LayoutDashboard, LogOut, Plus, Save, Search, Settings, Tags, Trash2, Upload, Users, X } from "lucide-react";
+import { Boxes, Check, ChevronDown, ChevronUp, ClipboardList, Download, LayoutDashboard, LogOut, Plus, Save, Search, Settings, Tags, Trash2, Upload, Users, X } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { businessSettings, formatCurrency, orderStatuses } from "@/data/catalog";
+import { getPortalToken } from "@/lib/portal-auth";
 import type { BusinessSettings, Category, Order, OrderStatus, Product, ProductVariant, RestaurantCustomer } from "@/types/catalog";
 
-type AdminTab = "dashboard" | "products" | "categories" | "orders" | "customers" | "pricing" | "settings";
+type AdminTab = "dashboard" | "products" | "categories" | "orders" | "customers" | "settings";
 
 const tabs = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -15,7 +16,6 @@ const tabs = [
   { id: "categories", label: "Categories", icon: Tags },
   { id: "orders", label: "Orders", icon: ClipboardList },
   { id: "customers", label: "Restaurant Customers", icon: Users },
-  { id: "pricing", label: "Pricing", icon: Building2 },
   { id: "settings", label: "Settings", icon: Settings },
 ] satisfies { id: AdminTab; label: string; icon: typeof LayoutDashboard }[];
 
@@ -296,59 +296,24 @@ export default function AdminPage() {
     }
   }
 
-  async function saveFilteredPrices() {
+  async function downloadPriceCsv() {
     try {
-      let saved = 0;
-      for (const product of filteredProducts) {
-        const isSeedId = product.id.startsWith("p-") || product.id.startsWith("local-");
-        const response = await adminFetch("/api/admin/products", {
-          method: isSeedId ? "POST" : "PATCH",
-          body: JSON.stringify(product),
-        });
-        const payload = await response.json();
-        if (payload.product) updateProduct(product.id, payload.product, false);
-        markProductClean(product.id);
-        saved += 1;
-        setToast({ text: `Saving prices... ${saved}/${filteredProducts.length}`, tone: "ok" });
-      }
-      notify(`Saved prices for ${saved} filtered products.`);
+      const response = await adminFetch("/api/admin/products/prices");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `famfood-prices-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      notify("Full price list downloaded. \u5B8C\u6574\u4EF7\u683C\u8868\u5DF2\u4E0B\u8F7D");
       return true;
     } catch (caught) {
-      notify(caught instanceof Error ? caught.message : "Unable to save filtered prices.", "err");
+      notify(caught instanceof Error ? caught.message : "Unable to download price list.", "err");
       return false;
     }
-  }
-
-  function downloadFilteredPriceCsv() {
-    const rows = filteredProducts.map((product) => {
-      const category = categoryLookup.get(product.categorySlug || product.categoryId);
-      return [
-        product.sku,
-        product.slug,
-        product.name.en,
-        product.publicPrice,
-        product.restaurantPrice,
-        category?.slug || product.categorySlug || product.categoryId,
-        product.stockStatus,
-        product.active ? "TRUE" : "FALSE",
-      ];
-    });
-    const csv = [
-      ["sku", "slug", "name", "publicPrice", "restaurantPrice", "category", "stockStatus", "active"],
-      ...rows,
-    ]
-      .map((row) => row.map(csvCell).join(","))
-      .join("\n");
-    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `famfood-price-list-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
-    notify(`Downloaded ${filteredProducts.length} filtered products as CSV.`);
   }
 
   async function saveCategory(category: Category) {
@@ -491,8 +456,8 @@ export default function AdminPage() {
     try {
       const response = await adminFetch("/api/admin/products/prices", { method: "POST", body: formData });
       const payload = await response.json();
-      await loadAdminData();
-      notify(`Price CSV processed. Updated ${payload.updated || 0}${payload.unmatched ? `, unmatched ${payload.unmatched}` : ""}.`);
+      await loadAdminProducts(productPage);
+      notify(`Prices updated 价格已更新: ${payload.updated || 0} rows${payload.unmatched ? `, ${payload.unmatched} not found 未找到` : ""}.`);
     } catch (caught) {
       notify(caught instanceof Error ? caught.message : "Unable to update prices.", "err");
     } finally {
@@ -581,10 +546,21 @@ export default function AdminPage() {
                 title="Manage products"
                 description={`${productTotal} products total. Click a row to edit, or tick rows for bulk actions. 点一行进入编辑，勾选多行可批量操作。`}
                 action={
-                  <button type="button" onClick={addProduct} className="ff-button ff-button-primary h-11">
-                    <Plus className="h-4 w-4" />
-                    Add Product
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <AsyncButton onRun={downloadPriceCsv} busyLabel="Preparing..." doneLabel="Downloaded" className="ff-button ff-button-outline h-11 bg-white">
+                      <Download className="h-4 w-4" />
+                      Price CSV
+                    </AsyncButton>
+                    <label className={`ff-button ff-button-outline h-11 cursor-pointer bg-white ${uploadingCsv ? "pointer-events-none opacity-60" : ""}`}>
+                      <Upload className="h-4 w-4" />
+                      {uploadingCsv ? "Uploading..." : "Upload CSV"}
+                      <input type="file" accept=".csv,text/csv" className="hidden" disabled={uploadingCsv} onChange={(event) => uploadPriceCsv(event.target.files?.[0])} />
+                    </label>
+                    <button type="button" onClick={addProduct} className="ff-button ff-button-primary h-11">
+                      <Plus className="h-4 w-4" />
+                      Add Product
+                    </button>
+                  </div>
                 }
               >
                 <ProductFilters
@@ -854,64 +830,6 @@ export default function AdminPage() {
               </Panel>
             )}
 
-            {tab === "pricing" && (
-              <Panel
-                title="Pricing"
-                description={`Quick price editor 快速改价 (${filteredProducts.length} products). CSV upload needs: sku or name, publicPrice, restaurantPrice.`}
-                action={
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={downloadFilteredPriceCsv} className="ff-button ff-button-outline h-11 bg-white">
-                      <Download className="h-4 w-4" />
-                      Download CSV
-                    </button>
-                    <AsyncButton onRun={saveFilteredPrices} busyLabel="Saving..." className="ff-button ff-button-outline h-11 bg-white">
-                      <Save className="h-4 w-4" />
-                      Save Filtered Prices
-                    </AsyncButton>
-                    <label className={`ff-button ff-button-primary h-11 cursor-pointer ${uploadingCsv ? "pointer-events-none opacity-60" : ""}`}>
-                      <Upload className="h-4 w-4" />
-                      {uploadingCsv ? "Uploading..." : "Upload CSV"}
-                      <input type="file" accept=".csv,text/csv" className="hidden" disabled={uploadingCsv} onChange={(event) => uploadPriceCsv(event.target.files?.[0])} />
-                    </label>
-                  </div>
-                }
-              >
-                <ProductFilters
-                  categories={managedCategories}
-                  categoryFilter={productCategoryFilter}
-                  catalogFilter={productCatalogFilter}
-                  search={productSearch}
-                  statusFilter={productStatusFilter}
-                  onCategoryFilter={setProductCategoryFilter}
-                  onCatalogFilter={setProductCatalogFilter}
-                  onSearch={setProductSearch}
-                  onStatusFilter={setProductStatusFilter}
-                />
-                <div className="mt-5 grid gap-3">
-                  {filteredProducts.map((product) => {
-                    const category = categoryLookup.get(product.categorySlug || product.categoryId);
-                    return (
-                      <div key={product.id} className="grid gap-3 border border-[#ddd7cc] bg-white p-4 lg:grid-cols-[minmax(300px,1fr)_minmax(250px,320px)_auto] lg:items-center">
-                        <div className="min-w-0">
-                          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{product.sku}</p>
-                          <p className="mt-1 break-words font-bold leading-snug text-slate-950">{product.name.en}</p>
-                          <p className="mt-1 break-words text-xs font-bold text-slate-500">{category?.name.en || product.categoryName?.en || product.categoryId}</p>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <ProductQuickPrice label="Public" value={product.publicPrice} onChange={(value) => updateProduct(product.id, { publicPrice: value })} />
-                          <ProductQuickPrice label="Restaurant" value={product.restaurantPrice} onChange={(value) => updateProduct(product.id, { restaurantPrice: value })} />
-                        </div>
-                        <AsyncButton onRun={() => saveProduct(product)} dirty={dirtyProducts.has(product.id)} className="ff-button ff-button-outline h-10 min-w-0 bg-white px-3 text-xs">
-                          Save Row
-                        </AsyncButton>
-                      </div>
-                    );
-                  })}
-                  {filteredProducts.length === 0 && <div className="border border-dashed border-slate-300 bg-white p-8 text-center text-sm font-bold text-slate-500">No products match the current filters.</div>}
-                    </div>
-              </Panel>
-            )}
-
             {tab === "settings" && (
               <Panel title="Business settings" description="Contact info shown on the website and in WhatsApp checkout messages. 网站和 WhatsApp 下单信息里显示的联系资料。">
                 <div className="grid gap-4 md:grid-cols-2">
@@ -1062,15 +980,6 @@ function ProductFilters({
         ))}
       </select>
     </div>
-  );
-}
-
-function ProductQuickPrice({ label, onChange, value }: { label: string; onChange: (value: number | null) => void; value: number | null }) {
-  return (
-    <label className="block">
-      <span className="admin-label">{label}</span>
-      <input value={value === null ? "" : String(value)} onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))} type="number" min="0" step="0.01" placeholder="Ask Price" className="admin-input h-10" />
-    </label>
   );
 }
 
@@ -1416,25 +1325,18 @@ function localId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
-function csvCell(value: string | number | boolean | null | undefined) {
-  const text = String(value ?? "");
-  if (/[",\n\r]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
-  return text;
-}
-
-function adminFetch(input: string, init: RequestInit = {}) {
-  const session = JSON.parse(window.localStorage.getItem("famfood-session") || "{}") as { token?: string };
+async function adminFetch(input: string, init: RequestInit = {}) {
+  const token = await getPortalToken();
   const headers = new Headers(init.headers);
   if (!headers.has("content-type") && init.body && !(init.body instanceof FormData)) headers.set("content-type", "application/json");
-  if (session.token) headers.set("authorization", `Bearer ${session.token}`);
+  if (token) headers.set("authorization", `Bearer ${token}`);
 
-  return fetch(input, { ...init, headers }).then(async (response) => {
-    if (!response.ok) {
-      const payload = await response.json().catch(() => ({}));
-      throw new Error(payload.error || "Request failed.");
-    }
-    return response;
-  });
+  const response = await fetch(input, { ...init, headers });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(response.status === 401 ? "Session expired — please log in again. 登录已过期，请重新登录。" : payload.error || "Request failed.");
+  }
+  return response;
 }
 
 async function handleImageFile(file: File | undefined, onImage: (image: string, path?: string) => void, folder: "products" | "categories" = "products") {
