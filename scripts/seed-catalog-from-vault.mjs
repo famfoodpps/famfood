@@ -95,6 +95,14 @@ const normalized = (value) => String(value || "").toLowerCase().replace(/[^a-z0-
 const hasAny = (value, words) => words.some((word) => value.includes(word));
 
 function categoryFor(record) {
+  // July 2026 catalog code prefixes map to that catalog's printed sections
+  // (A/B fish, C shell, D prawn & squid, E meat series, G japanese, H steamboat).
+  // SP (promo), F (soup) and I (others) sections are mixed, so those fall
+  // through to the source-category / keyword rules below.
+  const codeSections = { A: "fish-seafood", B: "fish-seafood", C: "shellfish", D: "prawn-squid", E: "meat", G: "japanese-ingredients", H: "hotpot-oden" };
+  const codePrefix = /^(SP|[A-Z])\d+$/i.exec(String(record.code || "").trim())?.[1]?.toUpperCase();
+  if (codePrefix && codeSections[codePrefix]) return codeSections[codePrefix];
+
   const direct = {
     "Whole Fish": "fish-seafood",
     "Fish Fillet": "fish-seafood",
@@ -104,11 +112,6 @@ function categoryFor(record) {
     Shell: "shellfish",
     Crab: "shellfish",
     Scallop: "shellfish",
-    Beef: "meat",
-    Buffalo: "meat",
-    Lamb: "meat",
-    Chicken: "meat",
-    Duck: "meat",
     Japanese: "japanese-ingredients",
     "Seasonings & Sauces": "cooking-essentials",
     "Fresh Juice": "dessert-drinks",
@@ -118,16 +121,20 @@ function categoryFor(record) {
   if (direct[record.category]) return direct[record.category];
 
   const target = normalized(`${record.name_en} ${record.name_zh} ${record.specification}`);
-  if (record.category === "Others" && hasAny(target, ["scallop", "sacllop", "hokkigai", "clam", "mussel", "oyster"])) return "shellfish";
-  if (record.category === "Others" && hasAny(target, ["ebi", "prawn", "shrimp", "squid", "cuttlefish", "calamari", "octopus", "tako"])) return "prawn-squid";
-  if (record.category === "Others" && hasAny(target, ["pollock", "cod fish", "fish fillet", "fish maw"])) return "fish-seafood";
+  // Desserts whose names would otherwise hit the hotpot "ball" rule (汤圆, 麻薯…).
+  if (hasAny(target, ["glutinous", "glutinuos", "rice ball", "mochi", "lava mochi", "ice cream", "milkshake", "smoothie", "coconut shake", "cheese cake", "custard cake", "sesame ball", "taro ball", "sweet potato ball"])) return "dessert-drinks";
+  if (hasAny(target, ["ball", "fishcake", "fish cake", "fishmaw", "fish maw", "fish strip", "fish rainbow", "fish noodle", "tofu", "bean curd", "beancurd", "soy fish", "fish soy", "hotpot", "hot pot", "steamboat", "oden", "konnyaku", "fish paste", "crab stick", "crabstick", "seafood stick", "chikuwa", "yong tau", "fish roe", "seafood product", "fisro", "surmi", "surimi", "imitation crab", "imitation super snow", "fish puffy", "fish skin", "fish dumpling", "fish sandwich", "fish finger", "fish chips", "fish vege", "fish n soy", "keropok", "fish stick", "korean fish", "fishball"])) return "hotpot-oden";
+  if (hasAny(target, ["bun", "mantou", "steamed bread", "dumpling", "wonton", "spring roll", "popiah", "popia", "samosa", "puff", "fries", "chips", "wedges", "nugget", "croquette", "rice cake", "donut", "dough stick", "yu tiao", "hash brown", "hashbrown", "tater tot", "sausage", "frank", "frankfurter", "frankfuter", "cocktail", "finger", "patty", "patties", "burger", "sandwich", "loaf", "meatloaf", "cold cut", "luncheon", "ham", "satay", "pie", "croissant", "danish", "garlic bread", "egg tart", "onion ring", "money bag", "seafood dates", "lucky bag", "cheese stick", "cheese bite", "radish stick", "puchok goreng", "otak otak", "otak-otak", "pratha", "roll", "tempura", "breaded", "popcorn", "fried chicken", "roasted chicken", "pandan chicken", "chicken tender", "nasi lemak", "fried rice", "stir fried", "spaghetti with", "rendang"])) return "finger-food-dim-sum";
+  // Real meat cuts only — checked after hotpot/finger-food so processed items
+  // (sausages, nuggets, dumplings…) never land in the meat category.
+  if (["Beef", "Buffalo", "Lamb", "Chicken", "Duck"].includes(record.category)) return "meat";
   if (record.category === "Others" && hasAny(target, ["beef", "chicken", "turkey", "duck", "mutton", "lamb"])) return "meat";
-  if (hasAny(target, ["ball", "fishcake", "fish cake", "fishmaw", "fish maw", "fish strip", "fish rainbow", "tofu", "bean curd", "beancurd", "soy fish", "fish soy", "hotpot", "hot pot", "steamboat", "oden", "konnyaku", "fish paste", "crab stick", "crabstick", "seafood stick", "chikuwa", "yong tau", "fish roe", "seafood product", "fisro"])) return "hotpot-oden";
-  if (hasAny(target, ["bun", "mantou", "steamed bread", "dumpling", "wonton", "spring roll", "popiah", "samosa", "puff", "fries", "chips", "wedges", "nugget", "croquette", "mochi", "rice cake", "donut", "dough stick", "yu tiao", "hash brown", "hashbrown", "tater tot", "sausage", "frankfurter", "cocktail", "finger", "patty", "burger", "sandwich", "loaf", "ham", "satay", "pie", "croissant", "danish", "garlic bread", "egg tart", "onion ring", "money bag", "seafood dates", "lucky bag", "cheese stick", "imitation crab", "imitation super snow", "radish stick", "puchok goreng", "keropok", "otak otak", "pratha", "drumstick", "roll"])) return "finger-food-dim-sum";
-  if (hasAny(target, ["sauce", "paste", "seasoning", "powder", "soup base", "soup stock", "soup", "noodle", "ramen", "udon", "spaghetti", "pepper", "salt", "flour", "oil"])) return "cooking-essentials";
-  if (hasAny(target, ["corn", "whole kernel", "vegetable", "vege", "broccoli", "spinach", "edamame", "mukimame", "berry", "fruit", "potato", "taro", "yam", "pumpkin"])) return "vegetables-fruits";
-  if (hasAny(target, ["ice cream", "milkshake", "smoothie", "coconut shake", "dessert", "cake", "custard", "chocolate", "mango", "strawberry", "sesame ball", "glutinous", "glutinuos"])) return "dessert-drinks";
-  if (hasAny(target, ["fried rice", "party combo"])) return "frozen-food";
+  if (hasAny(target, ["scallop", "sacllop", "hokkigai", "clam", "mussel", "oyster", "abalone"])) return "shellfish";
+  if (hasAny(target, ["ebi", "prawn", "shrimp", "squid", "cuttlefish", "cutteflish", "calamari", "octopus", "tako", "lobster", "crab"])) return "prawn-squid";
+  if (hasAny(target, ["pollock", "cod fish", "fish fillet", "fillet", "whole fish", "fish slice"])) return "fish-seafood";
+  if (hasAny(target, ["sauce", "paste", "seasoning", "powder", "soup base", "soup stock", "soup", "noodle", "ramen", "udon", "spaghetti", "pepper", "salt", "flour", "mayo", "mayonnaise", "miso"])) return "cooking-essentials";
+  if (hasAny(target, ["corn", "whole kernel", "vegetable", "mixed vege", "broccoli", "spinach", "edamame", "mukimame", "berry", "berries", "fruit", "potato", "taro", "yam", "pumpkin"])) return "vegetables-fruits";
+  if (hasAny(target, ["dessert", "cake", "custard", "chocolate", "mango", "strawberry"])) return "dessert-drinks";
   return "frozen-food";
 }
 

@@ -11,6 +11,32 @@ import { RollingText } from "@/components/RollingText";
 import { useLanguage } from "@/hooks/useLanguage";
 import type { Category, Product } from "@/types/catalog";
 
+const stockCategorySlugs = new Set([
+  "fish-seafood",
+  "prawn-squid",
+  "shellfish",
+  "meat",
+  "hotpot-oden",
+  "finger-food-dim-sum",
+  "japanese-ingredients",
+  "cooking-essentials",
+  "dessert-drinks",
+  "vegetables-fruits",
+  "frozen-food",
+]);
+
+function categoryImage(category: Category) {
+  const stockImage = stockCategorySlugs.has(category.slug)
+    ? `/famfood-assets/categories/stock/${category.slug}.webp`
+    : "";
+
+  if (stockImage && !category.imageStoragePath) {
+    return stockImage;
+  }
+
+  return category.image || stockImage || "/product-placeholder.svg";
+}
+
 export default function Home() {
   const { locale, pick } = useLanguage();
   const [categories, setCategories] = useState<Category[]>([]);
@@ -72,13 +98,12 @@ export default function Home() {
               <Reveal key={category.id} delay={index * 0.04}>
                 <Link href={`/products?category=${category.slug}`} className="group block overflow-hidden border border-[#ddd7cc] bg-white">
                   <div className="relative aspect-[1.08] overflow-hidden">
-                    <Image src={category.image} alt={pick(category.name)} fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" className="object-cover transition duration-700 group-hover:scale-105" />
+                    <Image src={categoryImage(category)} alt={pick(category.name)} fill sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw" className="object-cover transition duration-700 group-hover:scale-105" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/15 to-transparent" />
                     <h3 className="display-serif absolute bottom-4 left-4 right-4 text-[clamp(1.1rem,1.8vw,1.45rem)] font-medium leading-tight text-white">
                       {pick(category.name)}
                     </h3>
                   </div>
-                  <p className="min-h-12 px-4 py-3 text-xs font-black uppercase tracking-[0.12em] text-[#07586b]">{pick(category.group)}</p>
                 </Link>
               </Reveal>
             ))}
