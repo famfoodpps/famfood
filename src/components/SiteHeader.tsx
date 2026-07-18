@@ -93,20 +93,37 @@ export function SiteHeader() {
           </a>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          className={`mobile-menu-button inline-flex h-11 w-11 items-center justify-center border lg:hidden ${open ? "is-open" : ""} ${
-            dark ? "border-white/40 text-white" : "border-slate-200 text-slate-800"
-          }`}
-          aria-label={open ? "Close navigation menu" : "Open navigation menu"}
-          aria-expanded={open}
-          aria-controls="mobile-navigation"
-        >
-          <span />
-          <span />
-          <span />
-        </button>
+        <div className="flex shrink-0 items-center gap-2 lg:hidden">
+          <Link
+            href="/cart"
+            onClick={() => setOpen(false)}
+            className={`relative inline-flex h-11 w-11 items-center justify-center border ${
+              dark ? "border-white/40 text-white" : "border-slate-200 text-slate-800"
+            }`}
+            aria-label={`Cart${count > 0 ? `, ${count} item${count === 1 ? "" : "s"}` : ""}`}
+          >
+            <ShoppingCart className="h-4 w-4" />
+            {count > 0 && (
+              <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-[#c22931] px-1 text-[10px] font-black leading-none text-white">
+                {count}
+              </span>
+            )}
+          </Link>
+          <button
+            type="button"
+            onClick={() => setOpen((value) => !value)}
+            className={`mobile-menu-button inline-flex h-11 w-11 items-center justify-center border ${open ? "is-open" : ""} ${
+              dark ? "border-white/40 text-white" : "border-slate-200 text-slate-800"
+            }`}
+            aria-label={open ? "Close navigation menu" : "Open navigation menu"}
+            aria-expanded={open}
+            aria-controls="mobile-navigation"
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        </div>
       </div>
       <div id="mobile-navigation" className={`mobile-menu-panel lg:hidden ${open ? "is-open" : ""}`} aria-hidden={!open} inert={!open}>
         <div className="section-shell mobile-menu-inner">
