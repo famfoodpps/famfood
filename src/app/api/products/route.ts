@@ -12,6 +12,8 @@ export async function GET(request: Request) {
   const ids = searchParams.get("ids")?.split(",").map((value) => value.trim()).filter(Boolean).slice(0, 100) || [];
   const slug = searchParams.get("slug")?.trim();
   const category = searchParams.get("category")?.trim();
+  const catalog = searchParams.get("catalog")?.trim();
+  const isB2bCatalog = catalog === "b2b";
   const featured = searchParams.get("featured") === "true";
   const search = cleanSearch(searchParams.get("q"));
   const sort = searchParams.get("sort");
@@ -21,17 +23,21 @@ export async function GET(request: Request) {
     .from("products")
     .select(PRODUCT_SELECT, { count: "exact" })
     .eq("active", true)
-    .eq("retail_visible", true)
     .eq("product_variants.active", true);
+
+  if (!isB2bCatalog) query = query.eq("retail_visible", true);
 
   if (sort === "price_asc") {
     query = query.order("public_price", { ascending: true, nullsFirst: false });
   } else if (sort === "price_desc") {
     query = query.order("public_price", { ascending: false, nullsFirst: false });
+  } else if (sort === "name_asc") {
+    query = query.order("name_en", { ascending: true });
   } else {
     query = query.order("featured", { ascending: false }).order("categories(sort_order)", { ascending: true });
   }
-  query = query.order("name_en", { ascending: true }).order("sort_order", { referencedTable: "product_variants", ascending: true });
+  if (sort !== "name_asc") query = query.order("name_en", { ascending: true });
+  query = query.order("sort_order", { referencedTable: "product_variants", ascending: true });
 
   if (ids.length) query = query.in("id", ids);
   if (slug) query = query.eq("slug", slug);
@@ -47,5 +53,5 @@ export async function GET(request: Request) {
     restaurantPrice: null,
     variants: product.variants.map((variant) => ({ ...variant, restaurantPrice: null })),
   }));
-  return NextResponse.json({ products, page, pageSize, total: count || 0, totalPages: Math.ceil((count || 0) / pageSize), source: "supabase" });
+  return NextResponse.json({ products, page, pageSize, total: count || 0, totalPages: Math.ceil((count || 0) / pageSize), catalog: isB2bCatalog ? "b2b" : "retail", source: "supabase" });
 }

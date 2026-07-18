@@ -13,9 +13,10 @@ import type { Product } from "@/types/catalog";
 type ProductCardProps = {
   product: Product;
   mode?: "public" | "restaurant";
+  detailHref?: string;
 };
 
-export function ProductCard({ product, mode = "public" }: ProductCardProps) {
+export function ProductCard({ product, mode = "public", detailHref }: ProductCardProps) {
   const cart = useCart(mode);
   const { locale, pick } = useLanguage();
   const variant = getDefaultVariant(product, mode);
@@ -27,6 +28,7 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
   const specification = packing || weight;
   const description = pick(product.description);
   const showDescription = !isPlaceholderDescription(description);
+  const productHref = detailHref || `/products/${product.slug}`;
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
@@ -42,7 +44,7 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
 
   return (
     <article className="group flex h-full min-h-[570px] flex-col overflow-hidden border border-[#ddd7cc] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#07586b] hover:shadow-2xl hover:shadow-[#07586b]/10">
-      <Link href={`/products/${product.slug}`} className="block">
+      <Link href={productHref} className="block">
         <div className="relative aspect-square overflow-hidden bg-[#f7f2e8]">
           <Image src={product.image} alt={pick(product.name)} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover transition duration-700 group-hover:scale-105" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 transition group-hover:opacity-100" />
@@ -52,7 +54,7 @@ export function ProductCard({ product, mode = "public" }: ProductCardProps) {
         </div>
       </Link>
       <div className="flex flex-1 flex-col p-6 text-center">
-        <Link href={`/products/${product.slug}`} className="display-serif line-clamp-2 min-h-14 text-xl font-medium leading-7 text-[#182126] hover:text-[#07586b]">
+        <Link href={productHref} className="display-serif line-clamp-2 min-h-14 text-xl font-medium leading-7 text-[#182126] hover:text-[#07586b]">
           {pick(product.name)}
         </Link>
         <p className="mt-2 line-clamp-2 min-h-10 text-sm text-slate-500">{specification}</p>

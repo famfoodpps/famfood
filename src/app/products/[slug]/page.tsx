@@ -1,7 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { useParams, useSearchParams } from "next/navigation";
 import { Check, MessageCircle, ShoppingCart } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProductCard } from "@/components/ProductCard";
@@ -14,8 +15,11 @@ import type { Product, ProductVariant } from "@/types/catalog";
 
 export default function ProductDetailPage() {
   const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  const isB2b = searchParams.get("catalog") === "b2b";
+  const mode = isB2b ? "restaurant" : "public";
   const { locale, pick } = useLanguage();
-  const cart = useCart("public");
+  const cart = useCart(mode);
   const [product, setProduct] = useState<Product | null>(null);
   const [related, setRelated] = useState<Product[]>([]);
   const [selectedVariantId, setSelectedVariantId] = useState("");
@@ -24,17 +28,18 @@ export default function ProductDetailPage() {
   const [added, setAdded] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/products?slug=${encodeURIComponent(params.slug)}`)
+    const catalogParam = isB2b ? "&catalog=b2b" : "";
+    fetch(`/api/products?slug=${encodeURIComponent(params.slug)}${catalogParam}`)
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || "Unable to load product.");
         const next = Array.isArray(payload.products) ? payload.products[0] as Product | undefined : undefined;
         if (!next) throw new Error("Product not found.");
         setProduct(next);
-        const defaultVariant = getDefaultVariant(next, "public");
+        const defaultVariant = getDefaultVariant(next, mode);
         setSelectedVariantId(defaultVariant?.id || "");
         if (next.categorySlug) {
-          fetch(`/api/products?category=${encodeURIComponent(next.categorySlug)}&pageSize=4`)
+          fetch(`/api/products?category=${encodeURIComponent(next.categorySlug)}&pageSize=4${catalogParam}`)
             .then((result) => result.json())
             .then((relatedPayload) => setRelated((relatedPayload.products || []).filter((item: Product) => item.id !== next.id).slice(0, 3)))
             .catch(() => undefined);
@@ -42,7 +47,7 @@ export default function ProductDetailPage() {
       })
       .catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to load product."))
       .finally(() => setLoading(false));
-  }, [params.slug]);
+  }, [isB2b, mode, params.slug]);
 
   useEffect(() => {
     if (!added) return;
@@ -53,10 +58,10 @@ export default function ProductDetailPage() {
   if (loading) return <div className="min-h-screen animate-pulse bg-slate-50 pt-[110px]" />;
   if (error || !product) return <div className="section-shell min-h-[60vh] pt-[150px]"><div className="border border-red-200 bg-red-50 p-6 font-bold text-red-700">{error || "Product not found."}</div></div>;
 
-  const selectedVariant = product.variants.find((item) => item.id === selectedVariantId) || getDefaultVariant(product, "public");
-  const publicPrice = selectedVariant ? variantPrice(selectedVariant, "public") : product.publicPrice;
+  const selectedVariant = product.variants.find((item) => item.id === selectedVariantId) || getDefaultVariant(product, mode);
+  const effectivePrice = selectedVariant ? variantPrice(selectedVariant, mode) : isB2b ? product.restaurantPrice : product.publicPrice;
   const categoryName = pick(product.categoryName ?? { en: product.sourceCategory || "Products", zh: product.sourceCategory || "产品" });
-  const hasPublicPrice = publicPrice !== null && publicPrice > 0;
+  const hasPrice = effectivePrice !== null && effectivePrice > 0;
   const packing = pick(product.packing).trim();
   const weight = product.weight.trim();
   const showWeight = Boolean(weight) && weight.toLocaleLowerCase() !== packing.toLocaleLowerCase();
@@ -84,14 +89,18 @@ export default function ProductDetailPage() {
             <div className="mt-8 bg-[#f7f2e8] p-5">
               <div className="grid gap-4 sm:grid-cols-2 sm:items-center">
                 <div>
-                  <p className="text-xs font-black uppercase text-slate-400">{locale === "zh" ? "价格" : "Price"}</p>
-                  <p className="text-3xl font-black text-[#07586b]">{hasPublicPrice ? formatCurrency(publicPrice) : "Ask Price"}</p>
+                  <p className="text-xs font-black uppercase text-slate-400">
+                    {isB2b ? (locale === "zh" ? "餐饮价格" : "B2B Price") : (locale === "zh" ? "价格" : "Price")}
+                  </p>
+                  <p className="text-3xl font-black text-[#07586b]">
+                    {hasPrice ? formatCurrency(effectivePrice) : isB2b ? (locale === "zh" ? "登录查看价格" : "Login for Price") : "Ask Price"}
+                  </p>
                 </div>
                 <StatusBadge value={product.stockStatus} />
               </div>
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              {hasPublicPrice ? (
+              {hasPrice ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -103,6 +112,16 @@ export default function ProductDetailPage() {
                   {added ? <Check className="h-4 w-4" /> : <ShoppingCart className="h-4 w-4" />}
                   {added ? (locale === "zh" ? "已加入购物车" : "Added to Cart") : "Add to Cart"}
                 </button>
+              ) : isB2b ? (
+                <>
+                  <Link href="/restaurant/login" className="ff-button ff-button-primary">
+                    {locale === "zh" ? "餐饮客户登录" : "Restaurant Login"}
+                  </Link>
+                  <a href={productWhatsAppUrl(product, locale, selectedVariant)} target="_blank" rel="noreferrer" className="ff-button ff-button-outline">
+                    <MessageCircle className="h-4 w-4" />
+                    {locale === "zh" ? "WhatsApp 询价" : "WhatsApp Ask Price"}
+                  </a>
+                </>
               ) : (
                 <a href={productWhatsAppUrl(product, locale, selectedVariant)} target="_blank" rel="noreferrer" className="ff-button ff-button-primary">
                   <MessageCircle className="h-4 w-4" />
@@ -118,7 +137,12 @@ export default function ProductDetailPage() {
             <h2 className="display-serif mt-3 text-4xl font-medium text-[#182126]">More From This Category</h2>
             <div className="mt-8 grid gap-6 md:grid-cols-3">
               {related.map((item) => (
-                <ProductCard key={item.id} product={item} />
+                <ProductCard
+                  key={item.id}
+                  product={item}
+                  mode={mode}
+                  detailHref={isB2b ? `/products/${item.slug}?catalog=b2b` : undefined}
+                />
               ))}
             </div>
           </section>
