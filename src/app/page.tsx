@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Building2, CheckCircle2, ShieldCheck, Truck } from "lucide-react";
+import { ArrowRight, ArrowUpRight, Building2, CheckCircle2, ShieldCheck, Truck } from "lucide-react";
 import { useEffect, useState } from "react";
 import { HeroSlider } from "@/components/HeroSlider";
 import { ProductCard } from "@/components/ProductCard";
@@ -56,23 +56,63 @@ export default function Home() {
     <>
       <HeroSlider />
 
-      <section className="bg-white py-20 md:py-28">
-        <div className="section-shell grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-          <Reveal>
-            <p className="ff-eyebrow">About FAMFOOD</p>
-            <h2 className="ff-title mt-5 text-[#182126]">
-              {locale === "zh" ? "扎根古晋的高级冷冻食品供应伙伴。" : "A Kuching supplier with a premium catalog mindset."}
-            </h2>
-          </Reveal>
-          <Reveal delay={0.1}>
-            <p className="text-lg leading-9 text-slate-600">
-              {locale === "zh"
-                ? "FAMFOOD Enterprise 为餐厅、零售商、咖啡馆与家庭客户供应海鲜、果汁、冷冻食品、烹饪干货与即食食材，重点是稳定、方便与专业服务。"
-                : "FAMFOOD Enterprise supplies seafood, juice, frozen food, cooking essentials and ready food to restaurants, retailers, cafes and home customers with a focus on stable access, convenience and professional service."}
-            </p>
-            <div className="mt-9 grid gap-6 sm:grid-cols-2">
-              <InfoBlock title={locale === "zh" ? "餐饮供应" : "Restaurant Supply"} text={locale === "zh" ? "餐厅价格、快速下单与订单记录。" : "Restaurant pricing, quick ordering and order history for repeat buyers."} icon={<Building2 className="h-7 w-7" />} />
-              <InfoBlock title={locale === "zh" ? "家庭与零售" : "Retail Orders"} text={locale === "zh" ? "公众客户可浏览产品、保存订单并发送 WhatsApp。" : "Public customers can browse products, save an order and send WhatsApp checkout."} icon={<ShieldCheck className="h-7 w-7" />} />
+      <section className="relative overflow-hidden bg-[#fbfaf6] py-20 md:py-28">
+        <div className="pointer-events-none absolute -right-32 -top-32 h-72 w-72 rounded-full border border-[#d8aa45]/30 md:h-96 md:w-96" />
+        <div className="section-shell relative">
+          <Reveal className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20">
+            <div>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <p className="ff-eyebrow">{locale === "zh" ? "更聪明的采购方式" : "A more considered way to buy food"}</p>
+                <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">
+                  {locale === "zh" ? "本地精选 / 为真实厨房而设计" : "Local range / Built for real kitchens"}
+                </span>
+              </div>
+              <h2 className="ff-title mt-6 max-w-xl text-[#182126]">
+                {locale === "zh" ? (
+                  <>
+                    厨房有更多选择，<span className="text-[#07586b]">下单少一点复杂。</span>
+                  </>
+                ) : (
+                  <>
+                    More choice for the kitchen. <span className="text-[#07586b]">Less friction in the order.</span>
+                  </>
+                )}
+              </h2>
+              <div className="mt-10 flex max-w-md items-start gap-5 border-t border-[#d8aa45]/60 pt-5">
+                <p className="text-sm font-bold leading-7 text-slate-600">
+                  {locale === "zh"
+                    ? "FAMFOOD 让食品采购更简单：精选海鲜、冷冻食品、饮品与厨房必备，搭配更顺手的订购方式，让每一次补货都更快。"
+                    : "FAMFOOD makes sourcing feel simpler: a curated range of seafood, frozen food, drinks and kitchen essentials, with a smoother way to move every order forward."}
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <InfoBlock
+                eyebrow={locale === "zh" ? "给餐饮客户" : "For food businesses"}
+                title={locale === "zh" ? "为下一场出餐做好准备。" : "Ready for the next service."}
+                text={
+                  locale === "zh"
+                    ? "查看餐厅价格、快速补货并集中管理订单记录，让团队少花时间找货，多花时间服务顾客。"
+                    : "Access restaurant pricing, reorder quickly and keep order history in one place—so your team can spend less time sourcing and more time serving."
+                }
+                cta={locale === "zh" ? "查看餐饮供应" : "View restaurant supply"}
+                href="/restaurant-supply"
+                icon={<Building2 className="h-7 w-7" />}
+                tone="dark"
+              />
+              <InfoBlock
+                eyebrow={locale === "zh" ? "给家庭与零售" : "For homes & retail"}
+                title={locale === "zh" ? "好食材，买起来更轻松。" : "Good food, made easier to shop."}
+                text={
+                  locale === "zh"
+                    ? "浏览产品、保存所需，适合的时候通过 WhatsApp 发出订单。"
+                    : "Explore the catalog, save what you need and send your order on WhatsApp when it suits you."
+                }
+                cta={locale === "zh" ? "浏览产品" : "Browse the catalog"}
+                href="/products"
+                icon={<ShieldCheck className="h-7 w-7" />}
+                tone="light"
+              />
             </div>
           </Reveal>
         </div>
@@ -192,12 +232,51 @@ export default function Home() {
   );
 }
 
-function InfoBlock({ icon, title, text: body }: { icon: React.ReactNode; title: string; text: string }) {
+function InfoBlock({
+  eyebrow,
+  icon,
+  title,
+  text: body,
+  cta,
+  href,
+  tone,
+}: {
+  eyebrow: string;
+  icon: React.ReactNode;
+  title: string;
+  text: string;
+  cta: string;
+  href: string;
+  tone: "dark" | "light";
+}) {
   return (
-    <div className="border-l-2 border-[#c22931] pl-6">
-      <div className="text-[#07586b]">{icon}</div>
-      <h3 className="display-serif mt-4 text-2xl font-medium text-[#182126]">{title}</h3>
-      <p className="mt-3 text-sm leading-7 text-slate-600">{body}</p>
-    </div>
+    <article
+      className={`group flex min-h-[340px] flex-col border p-7 transition duration-300 hover:-translate-y-1 ${
+        tone === "dark" ? "border-[#07586b] bg-[#07586b] text-white" : "border-[#d8d1c4] bg-white text-[#182126]"
+      }`}
+    >
+      <div className="flex items-center">
+        <span
+          className={`inline-flex h-12 w-12 items-center justify-center border ${
+            tone === "dark" ? "border-white/20 text-[#d8aa45]" : "border-[#d8aa45]/60 text-[#07586b]"
+          }`}
+        >
+          {icon}
+        </span>
+        <span className={`ml-5 h-px flex-1 ${tone === "dark" ? "bg-white/20" : "bg-[#d8aa45]/60"}`} />
+      </div>
+      <p className={`mt-10 text-[10px] font-black uppercase tracking-[0.18em] ${tone === "dark" ? "text-white/60" : "text-slate-500"}`}>{eyebrow}</p>
+      <h3 className="display-serif mt-4 text-3xl font-medium leading-tight">{title}</h3>
+      <p className={`mt-4 text-sm leading-7 ${tone === "dark" ? "text-white/75" : "text-slate-600"}`}>{body}</p>
+      <Link
+        href={href}
+        className={`mt-auto inline-flex cursor-pointer items-center gap-2 pt-8 text-xs font-black uppercase tracking-[0.1em] transition-[color,gap] group-hover:gap-3 hover:underline hover:underline-offset-4 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 ${
+          tone === "dark" ? "text-white hover:text-[#d8aa45] focus-visible:outline-white" : "text-[#07586b] hover:text-[#c22931] focus-visible:outline-[#07586b]"
+        }`}
+      >
+        {cta}
+        <ArrowUpRight className="h-4 w-4" />
+      </Link>
+    </article>
   );
 }
